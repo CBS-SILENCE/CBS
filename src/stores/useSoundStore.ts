@@ -64,11 +64,31 @@ const PRESETS: Record<PresetType, { vols: Record<number, number>; time: number }
   sleep: { vols: { 5: 45, 1: 30 }, time: 60 },
 };
 
-/* ── Helpers ───────────────────────────────────────────────────────────── */
+/* ── Helpers (Fade Logic) ──────────────────────────────────────────────── */
 
 const howls: Record<number, Howl> = {};
 const mixVol = (s: number, g: number) => s * g / 10000;
 const hashPwd = (p: string) => SHA256(p).toString();
+const FADE_DUR = 2000; // 2秒平滑渐入渐出
+
+const playHowl = (h: Howl, targetVol: number) => {
+  h.off('fade'); // 清除可能的渐出
+  if (!h.playing()) {
+    h.volume(0); // 从0开始
+    h.play();
+  }
+  h.fade(h.volume(), targetVol, FADE_DUR); // 渐入
+};
+
+const stopHowl = (h: Howl) => {
+  h.off('fade');
+  if (h.playing()) {
+    h.fade(h.volume(), 0, FADE_DUR); // 渐出
+    h.once('fade', () => {
+      if (h.volume() <= 0.01) h.stop(); // 彻底停止
+    });
+  }
+};
 
 const safeParse = <T,>(key: string, fb: T): T => {
   try { return JSON.parse(localStorage.getItem(key)!) || fb; } catch { return fb; }
@@ -78,7 +98,7 @@ const freshSounds = (): Sound[] =>
   BASE.map(s => ({ ...s, volume: 50, isPlaying: false }));
 
 const stopAll = () => {
-  Object.values(howls).forEach(h => h.stop());
+  Object.values(howls).forEach(stopHowl);
 };
 
 const ensureHowl = (id: number, url: string, vol: number, gVol: number): Howl => {
@@ -144,7 +164,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
     const { timerDuration, isTimerActive, sounds } = get();
     if (!isTimerActive) return;
     if (timerDuration <= 1 / 60) {
-      stopAll();
+      stopAll(); // 倒计时结束时触发渐出
       set({ timerDuration: 0, isTimerActive: false, isGlobalPlaying: false, sounds: mapSounds(sounds, () => ({ isPlaying: false })) });
     } else {
       set({ timerDuration: timerDuration - 1 / 60 });
@@ -156,7 +176,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
     sounds.forEach(s => {
       if (s.isPlaying && s.audioUrl) {
         const h = ensureHowl(s.id, s.audioUrl, s.volume, globalVolume);
-        if (!h.playing()) h.play();
+        playHowl(h, mixVol(s.volume, globalVolume));
       }
     });
   },
@@ -168,7 +188,8 @@ export const useSoundStore = create<AppState>((set, get) => ({
       const upd = state.sounds.map(s => {
         if (s.id !== id) return s;
         const playing = !s.isPlaying;
-        playing ? ensureHowl(id, s.audioUrl, s.volume, globalVolume).play() : howls[id]?.stop();
+        const h = ensureHowl(id, s.audioUrl, s.volume, globalVolume);
+        playing ? playHowl(h, mixVol(s.volume, globalVolume)) : stopHowl(h);
         return { ...s, isPlaying: playing };
       });
       return { sounds: upd, isGlobalPlaying: upd.some(s => s.isPlaying) };
