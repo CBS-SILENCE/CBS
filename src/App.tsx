@@ -1,5 +1,5 @@
 ﻿// 文件路径: src/App.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import './App.css';
 import { useSoundStore } from './stores/useSoundStore';
 import type { Sound, PresetType, Lang } from './stores/useSoundStore';
@@ -8,11 +8,11 @@ import { TbTrees, TbWaveSine, TbWind, TbFlame } from 'react-icons/tb';
 import { GiDove } from 'react-icons/gi';
 import { motion, AnimatePresence, useScroll, useTransform, Variants, useSpring, useMotionValue } from 'framer-motion';
 
-import rainBg  from './assets/images/rain-on-grasst.png';
+import rainBg from './assets/images/rain-on-grasst.png';
 import wavesBg from './assets/images/waves.png';
-import fireBg  from './assets/images/bonfire.png';
-import windBg  from './assets/images/wind.png';
-import birdBg  from './assets/images/bird.png';
+import fireBg from './assets/images/bonfire.png';
+import windBg from './assets/images/wind.png';
+import birdBg from './assets/images/bird.png';
 
 /* ── i18n Dictionary ───────────────────────────────────────────────────── */
 
@@ -50,11 +50,11 @@ const dict: Record<Lang, Record<string, string>> = {
 const bgMap: Record<number, string> = { 1: rainBg, 3: wavesBg, 5: fireBg, 6: windBg, 7: birdBg };
 const iconMap: Record<string, React.ReactNode> = { '🌿': <TbTrees />, '🌊': <TbWaveSine />, '🔥': <TbFlame />, '💨': <TbWind />, '🕊️': <GiDove /> };
 const authorMap: Record<number, { name: string; url: string }> = {
-  1: { name: 'Mjeno',                url: 'https://freesound.org/people/Mjeno/sounds/399275/?' },
-  3: { name: 'mmiron',               url: 'https://freesound.org/people/mmiron/sounds/130432/' },
-  5: { name: 'amether',              url: 'https://freesound.org/people/amether/sounds/189237/' },
-  6: { name: 'santiago.torres1314',  url: 'https://freesound.org/people/santiago.torres1314/sounds/677563/' },
-  7: { name: 'klankbeeld',           url: 'https://freesound.org/people/klankbeeld/sounds/810338/?' },
+  1: { name: 'Mjeno', url: 'https://freesound.org/people/Mjeno/sounds/399275/?' },
+  3: { name: 'mmiron', url: 'https://freesound.org/people/mmiron/sounds/130432/' },
+  5: { name: 'amether', url: 'https://freesound.org/people/amether/sounds/189237/' },
+  6: { name: 'santiago.torres1314', url: 'https://freesound.org/people/santiago.torres1314/sounds/677563/' },
+  7: { name: 'klankbeeld', url: 'https://freesound.org/people/klankbeeld/sounds/810338/?' },
 };
 
 /* ── Animation Presets ─────────────────────────────────────────────────── */
@@ -214,15 +214,17 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
 
   return (
     <div style={{ marginTop: i % 2 ? 120 : 0 }}>
-      <motion.div initial="hidden" whileInView="show" viewport={{ once: false, amount: 0.1 }}>
-        <motion.div variants={{ hidden: { opacity: 0, y: 40 }, show: { opacity: 1, y: 0, transition: trans((i % 2) * 0.15, 0.8) } }}>
-          <motion.div
-            className={`sound-editorial-card ${s.isPlaying ? 'is-playing' : ''}`}
-            onMouseEnter={() => setHovered(s.id)}
-            onMouseLeave={() => setHovered(null)}
-            animate={{ opacity: isDim ? 0.55 : 1, scale: isDim ? 0.97 : 1, filter: isDim ? 'blur(2px)' : 'blur(0px)' }}
-            transition={{ duration: 0.4 }}
-          >
+      <motion.div
+        initial="hidden" whileInView="show" viewport={{ once: false, amount: 0.1 }}
+        variants={{ hidden: { opacity: 0, y: 40 }, show: { opacity: 1, y: 0, transition: trans((i % 2) * 0.15, 0.8) } }}
+      >
+        <motion.div
+          className={`sound-editorial-card ${s.isPlaying ? 'is-playing' : ''}`}
+          onMouseEnter={() => setHovered(s.id)}
+          onMouseLeave={() => setHovered(null)}
+          animate={{ opacity: isDim ? 0.55 : 1, scale: isDim ? 0.97 : 1, filter: isDim ? 'blur(2px)' : 'blur(0px)' }}
+          transition={{ duration: 0.4 }}
+        >
             <div className="card-bg-container" aria-hidden="true">
               <motion.div
                 className="card-bg-image"
@@ -272,12 +274,18 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
                 </AnimatePresence>
               </div>
             </div>
-          </motion.div>
         </motion.div>
       </motion.div>
     </div>
   );
 });
+
+/* ── Helpers ───────────────────────────────────────────────────────────── */
+
+const fmtTime = (s: number): string => {
+  const total = Math.max(0, Math.ceil(s * 60));
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, '0')}`;
+};
 
 /* ── App (Root) ────────────────────────────────────────────────────────── */
 
@@ -287,16 +295,25 @@ export default function App() {
   const { scrollYProgress } = useScroll();
   const smooth = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
   const [hovered, setHovered] = useState<number | null>(null);
-  const [timerPreset, setTimerPreset] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [toastMsg, setToastMsg] = useState('');
 
-  const heroY   = useTransform(smooth, [0, 0.4], [0, -250]);
-  const heroOp  = useTransform(smooth, [0, 0.3], [1, 0]);
-  const heroSc  = useTransform(smooth, [0, 0.4], [1, 0.9]);
+  // 被意外删除的倒计时状态恢复
+  const [timerPreset, setTimerPreset] = useState(0);
+
+  // 三通道 HUD 状态分离
+  const [shareToastMsg, setShareToastMsg] = useState('');
+  const [globalToastMsg, setGlobalToastMsg] = useState('');
+  const [trackToastMsg, setTrackToastMsg] = useState('');
+
+  // 用户下拉菜单状态
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const heroY = useTransform(smooth, [0, 0.4], [0, -250]);
+  const heroOp = useTransform(smooth, [0, 0.3], [1, 0]);
+  const heroSc = useTransform(smooth, [0, 0.4], [1, 0.9]);
   const arrowOp = useTransform(smooth, [0, 0.05], [1, 0]);
 
-  /* URL mix restore on mount */
   useEffect(() => {
     if (window.location.search) {
       store.applyUrlMix(window.location.search);
@@ -305,28 +322,92 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Timer tick */
   useEffect(() => {
     const t = store.isTimerActive && store.timerDuration > 0 ? setInterval(store.tick, 1000) : null;
     return () => { if (t) clearInterval(t); };
   }, [store.isTimerActive, store.timerDuration, store.tick]);
 
-  const fmtTime = useCallback((s: number) => {
-    const total = Math.max(0, Math.ceil(s * 60));
-    return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, '0')}`;
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'SILENCE / 01', artist: 'Immersive Atmosphere', album: 'Custom Background Sound',
+        artwork: [{ src: '/logo192.png', sizes: '192x192', type: 'image/png' }, { src: '/logo512.png', sizes: '512x512', type: 'image/png' }]
+      });
+      const togglePlay = () => { const s = useSoundStore.getState(); if (!s.isGlobalPlaying) s.toggleGlobalPlay(); };
+      const togglePause = () => { const s = useSoundStore.getState(); if (s.isGlobalPlaying) s.toggleGlobalPlay(); };
+      navigator.mediaSession.setActionHandler('play', togglePlay);
+      navigator.mediaSession.setActionHandler('pause', togglePause);
+    }
   }, []);
 
-  const handleTimer = (m: number) => { setTimerPreset(m); store.setTimerDuration(m); };
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = store.isGlobalPlaying ? 'playing' : 'paused';
+    }
+  }, [store.isGlobalPlaying]);
 
-  const toast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(''), 3000); };
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const showShareToast = useCallback((msg: string) => { setShareToastMsg(msg); setTimeout(() => setShareToastMsg(''), 3000); }, []);
+  const showGlobalToast = useCallback((msg: string) => { setGlobalToastMsg(msg); setTimeout(() => setGlobalToastMsg(''), 1500); }, []);
+  const showTrackToast = useCallback((msg: string) => { setTrackToastMsg(msg); setTimeout(() => setTrackToastMsg(''), 2000); }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+      const state = useSoundStore.getState();
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        state.toggleGlobalPlay();
+        showGlobalToast(!state.isGlobalPlaying ? 'PLAY' : 'PAUSE');
+        return;
+      }
+
+      if (e.code === 'KeyM') {
+        e.preventDefault();
+        state.toggleMute();
+        showGlobalToast(!state.isMuted ? 'MUTE' : 'UNMUTE');
+        return;
+      }
+
+      // 智能正则匹配 1~5 数字键，极简解析音轨触发
+      const trackMatch = e.code.match(/^(?:Digit|Numpad)([1-5])$/);
+      if (trackMatch) {
+        e.preventDefault();
+        const index = parseInt(trackMatch[1], 10) - 1;
+        const sound = state.sounds[index];
+        if (sound) {
+          state.toggleSound(sound.id);
+          showTrackToast(`[ ${sound.name.toUpperCase()} ${!sound.isPlaying ? 'ON' : 'OFF'} ]`);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showGlobalToast, showTrackToast]);
+
+  // 恢复被误删的倒计时处理函数
+  const handleTimer = (m: number) => { setTimerPreset(m); store.setTimerDuration(m); };
 
   const handleShare = () => {
     const active = store.sounds.filter(s => s.isPlaying);
-    if (!active.length) return toast(d.noActive);
+    if (!active.length) return showShareToast(d.noActive);
     const params = new URLSearchParams();
     active.forEach(s => params.set(s.name.toLowerCase(), s.volume.toString()));
     const url = `${window.location.origin}${window.location.pathname}?${params}`;
-    navigator.clipboard.writeText(url).then(() => toast(d.copied));
+    navigator.clipboard.writeText(url).then(() => showShareToast(d.copied));
   };
 
   return (
@@ -335,18 +416,55 @@ export default function App() {
       <LoginModal />
       <ConfirmDeleteModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={() => { store.deleteAccount(); setShowDeleteConfirm(false); }} />
 
+      {/* 通道 B：全局主控提示 (屏幕正中心，透明悬浮感) */}
+      <AnimatePresence>
+        {globalToastMsg && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+            exit={{ opacity: 0, scale: 1.05, x: '-50%', y: '-50%' }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              position: 'fixed', top: '50%', left: '50%',
+              background: 'transparent', border: 'none',
+              padding: '24px 48px', zIndex: 100000, pointerEvents: 'none',
+              color: '#fff', fontSize: '2rem', fontWeight: 300, letterSpacing: '16px', textAlign: 'center',
+              textShadow: '0 10px 30px rgba(0,0,0,0.8)'
+            }}
+          >
+            [ {globalToastMsg} ]
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 通道 C：音轨精细控制提示 (悬浮岛正上方) */}
+      <AnimatePresence>
+        {trackToastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="toast-msg"
+            style={{ bottom: '130px', left: '50%', position: 'fixed', letterSpacing: '4px' }}
+          >
+            {trackToastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Navbar */}
       <motion.nav className="navbar" initial={{ y: -100 }} animate={{ y: 0 }} transition={trans()} aria-label="Main Navigation">
         <span className="logo" aria-hidden="true">SILENCE <span className="logo-sub">/ 01</span></span>
         <div className="nav-center"><StatusMonitor /></div>
         <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          
+
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <button onClick={handleShare} className="btn-icon" aria-label={d.share} title={d.share}>
               <FiShare2 size={18} aria-hidden="true" />
             </button>
+            {/* 通道 A：分享提示保留在原位 */}
             <AnimatePresence>
-              {toastMsg && (
+              {shareToastMsg && (
                 <motion.div
                   initial={{ opacity: 0, y: 10, x: '-50%' }}
                   animate={{ opacity: 1, y: 0, x: '-50%' }}
@@ -355,15 +473,9 @@ export default function App() {
                   className="toast-msg"
                   role="status"
                   aria-live="polite"
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 18px)',
-                    bottom: 'auto', 
-                    left: '50%',
-                    whiteSpace: 'nowrap',
-                  }}
+                  style={{ position: 'absolute', top: 'calc(100% + 18px)', bottom: 'auto', left: '50%', whiteSpace: 'nowrap' }}
                 >
-                  {toastMsg}
+                  {shareToastMsg}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -377,11 +489,70 @@ export default function App() {
           >
             <FiGlobe size={16} aria-hidden="true" /> {store.lang === 'ca' ? 'CA' : 'ES'}
           </button>
+
+          {/* 用户资料下拉菜单 */}
           {store.isLoggedIn ? (
-            <div className="user-profile">
-              <span aria-label={`Logged in as ${store.user?.username}`}><FiUser aria-hidden="true" /> {store.user?.username}</span>
-              <button onClick={store.logout} className="btn-icon" aria-label={d.logout} title={d.logout}><FiLogOut aria-hidden="true" /></button>
-              <button onClick={() => setShowDeleteConfirm(true)} className="btn-icon btn-icon-danger" aria-label={d.deleteAcc} title={d.deleteAcc}><FiUserX aria-hidden="true" /></button>
+            <div className="user-profile-container" ref={userMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="btn-icon"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', letterSpacing: '1px' }}
+                aria-label="User Menu"
+                aria-expanded={isUserMenuOpen}
+              >
+                <FiUser aria-hidden="true" /> {store.user?.username}
+                <motion.div animate={{ rotate: isUserMenuOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <FiChevronDown size={14} aria-hidden="true" />
+                </motion.div>
+              </button>
+
+              <AnimatePresence>
+                {isUserMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    style={{
+                      position: 'absolute', top: 'calc(100% + 20px)', right: 0,
+                      background: 'rgba(15, 15, 15, 0.85)', border: '1px solid var(--border-mid)',
+                      borderRadius: '8px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '2px',
+                      minWidth: 'max-content',
+                      backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.6)', zIndex: 1000
+                    }}
+                  >
+                    <button
+                      onClick={() => { store.logout(); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px',
+                        background: 'transparent', border: 'none', color: '#fff', fontSize: '0.75rem',
+                        letterSpacing: '1px', width: '100%', textAlign: 'left', borderRadius: '6px', cursor: 'none',
+                        transition: 'background 0.2s',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <FiLogOut size={14} aria-hidden="true" /> {d.logout}
+                    </button>
+                    <button
+                      onClick={() => { setShowDeleteConfirm(true); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px',
+                        background: 'transparent', border: 'none', color: 'var(--red)', fontSize: '0.75rem',
+                        letterSpacing: '1px', width: '100%', textAlign: 'left', borderRadius: '6px', cursor: 'none',
+                        transition: 'background 0.2s',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,59,48,0.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <FiUserX size={14} aria-hidden="true" /> {d.deleteAcc}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <button onClick={() => store.toggleLoginModal(true)} className="btn-login" aria-label={d.login}>{d.login}</button>
@@ -391,7 +562,6 @@ export default function App() {
 
       {/* Main */}
       <main className="main-content" role="main">
-        {/* Hero */}
         <motion.section className="hero-section" style={{ y: heroY, opacity: heroOp, scale: heroSc } as any} aria-labelledby="hero-heading">
           <div aria-hidden="true">
             {[d.hero1, d.hero2].map((txt, i) => (
@@ -402,7 +572,7 @@ export default function App() {
           </div>
           <h1 id="hero-heading" className="sr-only" style={{ display: 'none' }}>{d.hero1} {d.hero2}</h1>
           <motion.p className="hero-subtitle" {...fadeUp(0.4)}>{d.subtitle}</motion.p>
-          
+
           <motion.div className="preset-modes" {...fadeUp(0.6)} aria-label="Preset Modes">
             {(['focus', 'relax', 'sleep'] as PresetType[]).map(p => (
               <button key={p} onClick={() => store.applyPreset(p)} className="preset-btn" aria-label={`Preset ${p}`}>{p.toUpperCase()}</button>
@@ -411,7 +581,6 @@ export default function App() {
             <button onClick={store.resetMix} className="preset-btn" aria-label="Reset all volumes and tracks">{d.reset}</button>
           </motion.div>
 
-          {/* 新增：登录后显示的专属自定义混音预设 */}
           {store.isLoggedIn && (
             <motion.div className="preset-modes" {...fadeUp(0.7)} aria-label="Custom Presets" style={{ marginTop: '15px' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', letterSpacing: '2px', alignSelf: 'center', marginRight: '5px' }}>
@@ -434,9 +603,9 @@ export default function App() {
                       <button
                         onClick={() => {
                           const active = store.sounds.filter(s => s.isPlaying);
-                          if (!active.length) return toast(d.noActiveToSave);
+                          if (!active.length) return showShareToast(d.noActiveToSave);
                           store.saveCustomPreset(slot);
-                          toast(`${d.mix} 0${slot} ${d.saved}`);
+                          showShareToast(`${d.mix} 0${slot} ${d.saved}`);
                         }}
                         className="preset-btn"
                         style={{ borderStyle: 'dashed', opacity: 0.6 }}
