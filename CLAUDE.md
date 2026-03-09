@@ -14,15 +14,17 @@ Branch model: `main` (production) / `feature-update` (active dev)
 
 | Layer | Library | Version |
 |---|---|---|
-| Framework | React | ^19.2.1 |
-| Language | TypeScript | ^4.9.5 |
-| State | Zustand | ^5.0.9 |
+| Framework | React | ^19.2.4 |
+| Language | TypeScript | ^5.9.3 |
+| State | Zustand | ^5.0.11 |
 | Audio | Howler.js | ^2.2.4 |
-| Animation | Framer Motion | ^12.34.3 |
-| Icons | React Icons | ^4.11.0 |
+| Animation | Framer Motion | ^12.35.1 |
+| Icons | React Icons | ^5.6.0 |
 | Crypto | Crypto-JS (SHA256) | ^4.2.0 |
 | Build | react-scripts (CRA) | 5.0.1 |
 | Deploy | gh-pages | ^6.3.0 |
+
+> **Note:** `react-scripts` 5.0.1 declares a peer dep on TypeScript `^3.2.1 || ^4`, but TypeScript 5 works in practice. This is a known CRA limitation (CRA is no longer maintained). `@types/jest` is pinned at `^27.5.2` to match the Jest 27 version bundled by react-scripts.
 
 Commands:
 - `npm start` — dev server at localhost:3000
@@ -37,10 +39,11 @@ Commands:
 src/
   App.tsx              # All UI components (single file by design)
   App.css              # All styles (single file by design)
+  index.tsx            # React entry point
+  declarations.d.ts    # Module declarations (e.g. image/audio imports)
+  react-app-env.d.ts   # CRA type references
   stores/
-    useSoundStore.ts   # Zustand store — all audio logic, auth, state
-  types/
-    types.ts           # Type definitions (note: partly superseded by types in useSoundStore.ts)
+    useSoundStore.ts   # Zustand store — all audio logic, auth, state, and type definitions
   assets/images/       # Card background PNGs (rain, waves, bonfire, wind, bird)
   sounds/              # Audio MP3 files (rain, waves, bonfire, wind, bird)
 public/
