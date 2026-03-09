@@ -5,11 +5,11 @@
   "homepage": "https://ZiqiZhu-Lan.github.io/CBS",
   "dependencies": {
     "crypto-js": "^4.2.0",
-    "framer-motion": "^12.35.1",
+    "framer-motion": "^11.18.2",
     "howler": "^2.2.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-icons": "^5.6.0",
+    "react-icons": "^4.12.0",
     "react-scripts": "5.0.1",
     "zustand": "^5.0.11"
   },

@@ -18,8 +18,8 @@ Branch model: `main` (production) / `feature-update` (active dev)
 | Language | TypeScript | ^5.9.3 |
 | State | Zustand | ^5.0.11 |
 | Audio | Howler.js | ^2.2.4 |
-| Animation | Framer Motion | ^12.35.1 |
-| Icons | React Icons | ^5.6.0 |
+| Animation | Framer Motion | ^11.18.2 |
+| Icons | React Icons | ^4.12.0 |
 | Crypto | Crypto-JS (SHA256) | ^4.2.0 |
 | Build | react-scripts (CRA) | 5.0.1 |
 | Deploy | gh-pages | ^6.3.0 |
