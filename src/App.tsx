@@ -1,5 +1,4 @@
-﻿// 文件路径: src/App.tsx
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+﻿import React, { useEffect, useState, useCallback, useRef } from 'react';
 import './App.css';
 import { useSoundStore } from './stores/useSoundStore';
 import type { Sound, PresetType, Lang } from './stores/useSoundStore';
@@ -78,6 +77,12 @@ const modalAnim = (s = 0.9, y = 30, dur = 0.4) => ({
 
 const useDict = () => dict[useSoundStore(s => s.lang)];
 
+const useToast = (duration: number): [string, (msg: string) => void] => {
+  const [msg, setMsg] = useState('');
+  const show = useCallback((m: string) => { setMsg(m); setTimeout(() => setMsg(''), duration); }, [duration]);
+  return [msg, show];
+};
+
 /* ── CustomCursor ──────────────────────────────────────────────────────── */
 
 const CustomCursor = () => {
@@ -142,7 +147,7 @@ const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; o
     <AnimatePresence>
       {isOpen && (
         <motion.div className="modal-overlay" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ zIndex: 200000 }}>
-          <motion.div className="modal-content confirm-delete-modal" onClick={(e: React.MouseEvent) => e.stopPropagation()} {...modalAnim()} role="dialog" aria-modal="true" aria-labelledby="danger-zone-title">
+          <motion.div className="modal-content confirm-delete-modal" onClick={e => e.stopPropagation()} {...modalAnim()} role="dialog" aria-modal="true" aria-labelledby="danger-zone-title">
             <div className="danger-corner danger-corner--tl" aria-hidden="true" />
             <div className="danger-corner danger-corner--br" aria-hidden="true" />
             <h2 id="danger-zone-title">{d.dangerZone}</h2>
@@ -172,24 +177,24 @@ const LoginModal = () => {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!f.u || !f.p) return setF((s: typeof f) => ({ ...s, err: d.errEmpty }));
+    if (!f.u || !f.p) return setF(s => ({ ...s, err: d.errEmpty }));
     if (!(f.isReg ? register(f.u, f.p) : login(f.u, f.p)))
-      setF((s: typeof f) => ({ ...s, err: f.isReg ? d.errUserExists : d.errCredentials }));
+      setF(s => ({ ...s, err: f.isReg ? d.errUserExists : d.errCredentials }));
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div className="modal-overlay" onClick={() => toggle(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div className="modal-content" onClick={(e: React.MouseEvent) => e.stopPropagation()} {...modalAnim(0.9, 50, 0.6)} role="dialog" aria-modal="true" aria-labelledby="login-title">
+          <motion.div className="modal-content" onClick={e => e.stopPropagation()} {...modalAnim(0.9, 50, 0.6)} role="dialog" aria-modal="true" aria-labelledby="login-title">
             <button className="modal-close" onClick={() => toggle(false)} aria-label="Close modal"><FiX size={24} aria-hidden="true" /></button>
             <h2 id="login-title">{f.isReg ? d.joinUs : d.welcomeBack}</h2>
             <form className="auth-form" onSubmit={submit}>
               <div className="input-group">
-                <input autoFocus value={f.u} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, u: e.target.value })} placeholder={d.username} aria-label={d.username} />
+                <input autoFocus value={f.u} onChange={e => setF({ ...f, u: e.target.value })} placeholder={d.username} aria-label={d.username} />
               </div>
               <div className="input-group">
-                <input type="password" value={f.p} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, p: e.target.value })} placeholder={d.password} aria-label={d.password} />
+                <input type="password" value={f.p} onChange={e => setF({ ...f, p: e.target.value })} placeholder={d.password} aria-label={d.password} />
               </div>
               {f.err && <div className="error-msg" role="alert">{f.err}</div>}
               <button type="submit" className="btn-auth-submit">{f.isReg ? d.register : d.login}</button>
@@ -243,12 +248,7 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
             <div className="card-content">
               <div className="card-top">
                 <div className="icon-wrap" aria-hidden="true">{iconMap[s.id]}</div>
-                <button
-                  onClick={() => toggleSound(s.id)}
-                  className="btn-circular-play"
-                  aria-label={`${s.isPlaying ? 'Pause' : 'Play'} ${label}`}
-                  aria-pressed={s.isPlaying}
-                >
+                <button onClick={() => toggleSound(s.id)} className="btn-circular-play" aria-label={`${s.isPlaying ? 'Pause' : 'Play'} ${label}`} aria-pressed={s.isPlaying}>
                   <motion.div animate={{ rotate: s.isPlaying ? 360 : 0 }}>
                     {s.isPlaying ? <FiPause size={20} aria-hidden="true" /> : <FiPlay size={20} className="play-offset" aria-hidden="true" />}
                   </motion.div>
@@ -257,7 +257,7 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
               <div className="card-bottom">
                 <h2 className="card-title">{label}</h2>
                 <h4 className="card-eng-title" aria-hidden="true">{s.name.toUpperCase()}</h4>
-                {author && author.name && (
+                {author?.name && (
                   <div className="card-credit">
                     AUDIO BY{' '}
                     <a href={author.url} target="_blank" rel="noopener noreferrer" aria-label={`Audio credit to ${author.name}`}>{author.name}</a>
@@ -269,7 +269,7 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
                       <div className="card-vol-hit-area">
                         <input
                           type="range" min="0" max="100" value={s.volume}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSoundVolume(s.id, parseInt(e.target.value))}
+                          onChange={e => updateSoundVolume(s.id, parseInt(e.target.value))}
                           className="card-vol-slider"
                           style={{ '--vol': `${s.volume}%` } as any}
                           aria-label={`Volume for ${label}`}
@@ -302,18 +302,13 @@ export default function App() {
   const smooth = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
   const [hovered, setHovered] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // 被意外删除的倒计时状态恢复
   const [timerPreset, setTimerPreset] = useState(0);
-
-  // 三通道 HUD 状态分离
-  const [shareToastMsg, setShareToastMsg] = useState('');
-  const [globalToastMsg, setGlobalToastMsg] = useState('');
-  const [trackToastMsg, setTrackToastMsg] = useState('');
-
-  // 用户下拉菜单状态
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const [shareToastMsg, showShareToast] = useToast(3000);
+  const [globalToastMsg, showGlobalToast] = useToast(1500);
+  const [trackToastMsg, showTrackToast] = useToast(2000);
 
   const heroY = useTransform(smooth, [0, 0.4], [0, -250]);
   const heroOp = useTransform(smooth, [0, 0.3], [1, 0]);
@@ -334,43 +329,29 @@ export default function App() {
   }, [store.isTimerActive, store.timerDuration, store.tick]);
 
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: 'SILENCE / 01', artist: 'Immersive Atmosphere', album: 'Custom Background Sound',
-        artwork: [{ src: '/logo192.png', sizes: '192x192', type: 'image/png' }, { src: '/logo512.png', sizes: '512x512', type: 'image/png' }]
-      });
-      const togglePlay = () => { const s = useSoundStore.getState(); if (!s.isGlobalPlaying) s.toggleGlobalPlay(); };
-      const togglePause = () => { const s = useSoundStore.getState(); if (s.isGlobalPlaying) s.toggleGlobalPlay(); };
-      navigator.mediaSession.setActionHandler('play', togglePlay);
-      navigator.mediaSession.setActionHandler('pause', togglePause);
-    }
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'SILENCE / 01', artist: 'Immersive Atmosphere', album: 'Custom Background Sound',
+      artwork: [{ src: '/logo192.png', sizes: '192x192', type: 'image/png' }, { src: '/logo512.png', sizes: '512x512', type: 'image/png' }]
+    });
+    navigator.mediaSession.setActionHandler('play', () => { const s = useSoundStore.getState(); if (!s.isGlobalPlaying) s.toggleGlobalPlay(); });
+    navigator.mediaSession.setActionHandler('pause', () => { const s = useSoundStore.getState(); if (s.isGlobalPlaying) s.toggleGlobalPlay(); });
   }, []);
 
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = store.isGlobalPlaying ? 'playing' : 'paused';
-    }
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = store.isGlobalPlaying ? 'playing' : 'paused';
   }, [store.isGlobalPlaying]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handler = (e: MouseEvent) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setIsUserMenuOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  const showShareToast = useCallback((msg: string) => { setShareToastMsg(msg); setTimeout(() => setShareToastMsg(''), 3000); }, []);
-  const showGlobalToast = useCallback((msg: string) => { setGlobalToastMsg(msg); setTimeout(() => setGlobalToastMsg(''), 1500); }, []);
-  const showTrackToast = useCallback((msg: string) => { setTrackToastMsg(msg); setTimeout(() => setTrackToastMsg(''), 2000); }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName;
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
-
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const state = useSoundStore.getState();
 
       if (e.code === 'Space') {
@@ -379,32 +360,23 @@ export default function App() {
         showGlobalToast(!state.isGlobalPlaying ? 'PLAY' : 'PAUSE');
         return;
       }
-
       if (e.code === 'KeyM') {
         e.preventDefault();
         state.toggleMute();
         showGlobalToast(!state.isMuted ? 'MUTE' : 'UNMUTE');
         return;
       }
-
-      // 智能正则匹配 1~8 数字键
-      const trackMatch = e.code.match(/^(?:Digit|Numpad)([1-8])$/);
-      if (trackMatch) {
+      const m = e.code.match(/^(?:Digit|Numpad)([1-8])$/);
+      if (m) {
         e.preventDefault();
-        const index = parseInt(trackMatch[1], 10) - 1;
-        const sound = state.sounds[index];
-        if (sound) {
-          state.toggleSound(sound.id);
-          showTrackToast(`[ ${sound.name.toUpperCase()} ${!sound.isPlaying ? 'ON' : 'OFF'} ]`);
-        }
+        const sound = state.sounds[parseInt(m[1], 10) - 1];
+        if (sound) { state.toggleSound(sound.id); showTrackToast(`[ ${sound.name.toUpperCase()} ${!sound.isPlaying ? 'ON' : 'OFF'} ]`); }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showGlobalToast, showTrackToast]);
 
-  // 恢复被误删的倒计时处理函数
   const handleTimer = (m: number) => { setTimerPreset(m); store.setTimerDuration(m); };
 
   const handleShare = () => {
@@ -412,8 +384,7 @@ export default function App() {
     if (!active.length) return showShareToast(d.noActive);
     const params = new URLSearchParams();
     active.forEach(s => params.set(s.name.toLowerCase(), s.volume.toString()));
-    const url = `${window.location.origin}${window.location.pathname}?${params}`;
-    navigator.clipboard.writeText(url).then(() => showShareToast(d.copied));
+    navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?${params}`).then(() => showShareToast(d.copied));
   };
 
   return (
@@ -422,36 +393,29 @@ export default function App() {
       <LoginModal />
       <ConfirmDeleteModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={() => { store.deleteAccount(); setShowDeleteConfirm(false); }} />
 
-      {/* 通道 B：全局主控提示 (屏幕正中心，透明悬浮感) */}
+      {/* Channel B: global toast */}
       <AnimatePresence>
         {globalToastMsg && (
           <motion.div
+            className="global-toast"
             initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
             exit={{ opacity: 0, scale: 1.05, x: '-50%', y: '-50%' }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              position: 'fixed', top: '50%', left: '50%',
-              background: 'transparent', border: 'none',
-              padding: '24px 48px', zIndex: 100000, pointerEvents: 'none',
-              color: '#fff', fontSize: '2rem', fontWeight: 300, letterSpacing: '16px', textAlign: 'center',
-              textShadow: '0 10px 30px rgba(0,0,0,0.8)'
-            }}
+            transition={{ duration: 0.4, ease }}
           >
             [ {globalToastMsg} ]
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 通道 C：音轨精细控制提示 (悬浮岛正上方) */}
+      {/* Channel C: track toast */}
       <AnimatePresence>
         {trackToastMsg && (
           <motion.div
+            className="toast-msg track-toast"
             initial={{ opacity: 0, y: 20, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="toast-msg"
-            style={{ bottom: '130px', left: '50%', position: 'fixed', letterSpacing: '4px' }}
           >
             {trackToastMsg}
           </motion.div>
@@ -462,24 +426,22 @@ export default function App() {
       <motion.nav className="navbar" initial={{ y: -100 }} animate={{ y: 0 }} transition={trans()} aria-label="Main Navigation">
         <span className="logo" aria-hidden="true">SILENCE <span className="logo-sub">/ 01</span></span>
         <div className="nav-center"><StatusMonitor /></div>
-        <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+        <div className="nav-right">
 
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div className="share-anchor">
             <button onClick={handleShare} className="btn-icon" aria-label={d.share} title={d.share}>
               <FiShare2 size={18} aria-hidden="true" />
             </button>
-            {/* 通道 A：分享提示保留在原位 */}
+            {/* Channel A: share toast */}
             <AnimatePresence>
               {shareToastMsg && (
                 <motion.div
+                  className="toast-msg share-toast"
+                  role="status" aria-live="polite"
                   initial={{ opacity: 0, y: 10, x: '-50%' }}
                   animate={{ opacity: 1, y: 0, x: '-50%' }}
                   exit={{ opacity: 0, y: 10, x: '-50%' }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="toast-msg"
-                  role="status"
-                  aria-live="polite"
-                  style={{ position: 'absolute', top: 'calc(100% + 18px)', bottom: 'auto', left: '50%', whiteSpace: 'nowrap' }}
+                  transition={{ duration: 0.3, ease }}
                 >
                   {shareToastMsg}
                 </motion.div>
@@ -487,73 +449,31 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          <button
-            onClick={() => store.setLang(store.lang === 'ca' ? 'es' : 'ca')}
-            className="btn-icon"
-            aria-label="Change Language" title="Change Language"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '1px' }}
-          >
+          <button onClick={() => store.setLang(store.lang === 'ca' ? 'es' : 'ca')} className="btn-icon btn-lang" aria-label="Change Language" title="Change Language">
             <FiGlobe size={16} aria-hidden="true" /> {store.lang === 'ca' ? 'CA' : 'ES'}
           </button>
 
-          {/* 用户资料下拉菜单 */}
           {store.isLoggedIn ? (
-            <div className="user-profile-container" ref={userMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <button
-                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="btn-icon"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', letterSpacing: '1px' }}
-                aria-label="User Menu"
-                aria-expanded={isUserMenuOpen}
-              >
+            <div className="user-profile-container" ref={userMenuRef}>
+              <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="btn-icon btn-user-menu" aria-label="User Menu" aria-expanded={isUserMenuOpen}>
                 <FiUser aria-hidden="true" /> {store.user?.username}
                 <motion.div animate={{ rotate: isUserMenuOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                   <FiChevronDown size={14} aria-hidden="true" />
                 </motion.div>
               </button>
-
               <AnimatePresence>
                 {isUserMenuOpen && (
                   <motion.div
+                    className="dropdown-menu"
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    style={{
-                      position: 'absolute', top: 'calc(100% + 20px)', right: 0,
-                      background: 'rgba(15, 15, 15, 0.85)', border: '1px solid var(--border-mid)',
-                      borderRadius: '8px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '2px',
-                      minWidth: 'max-content',
-                      backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.6)', zIndex: 1000
-                    }}
+                    transition={{ duration: 0.2, ease }}
                   >
-                    <button
-                      onClick={() => { store.logout(); setIsUserMenuOpen(false); }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px',
-                        background: 'transparent', border: 'none', color: '#fff', fontSize: '0.75rem',
-                        letterSpacing: '1px', width: '100%', textAlign: 'left', borderRadius: '6px', cursor: 'none',
-                        transition: 'background 0.2s',
-                        whiteSpace: 'nowrap'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
+                    <button className="dropdown-item" onClick={() => { store.logout(); setIsUserMenuOpen(false); }}>
                       <FiLogOut size={14} aria-hidden="true" /> {d.logout}
                     </button>
-                    <button
-                      onClick={() => { setShowDeleteConfirm(true); setIsUserMenuOpen(false); }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px',
-                        background: 'transparent', border: 'none', color: 'var(--red)', fontSize: '0.75rem',
-                        letterSpacing: '1px', width: '100%', textAlign: 'left', borderRadius: '6px', cursor: 'none',
-                        transition: 'background 0.2s',
-                        whiteSpace: 'nowrap'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,59,48,0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
+                    <button className="dropdown-item dropdown-item--danger" onClick={() => { setShowDeleteConfirm(true); setIsUserMenuOpen(false); }}>
                       <FiUserX size={14} aria-hidden="true" /> {d.deleteAcc}
                     </button>
                   </motion.div>
@@ -583,38 +503,30 @@ export default function App() {
             {(['focus', 'relax', 'sleep'] as PresetType[]).map(p => (
               <button key={p} onClick={() => store.applyPreset(p)} className="preset-btn" aria-label={`Preset ${p}`}>{p.toUpperCase()}</button>
             ))}
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.2)', margin: '0 10px', alignSelf: 'center' }} aria-hidden="true" />
+            <div className="preset-divider" aria-hidden="true" />
             <button onClick={store.resetMix} className="preset-btn" aria-label="Reset all volumes and tracks">{d.reset}</button>
           </motion.div>
 
           {store.isLoggedIn && (
-            <motion.div className="preset-modes" {...fadeUp(0.7)} aria-label="Custom Presets" style={{ marginTop: '15px' }}>
-              <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', letterSpacing: '2px', alignSelf: 'center', marginRight: '5px' }}>
-                {d.myMixes}
-              </span>
+            <motion.div className="preset-modes custom-presets" {...fadeUp(0.7)} aria-label="Custom Presets">
+              <span className="custom-presets-label">{d.myMixes}</span>
               {[1, 2, 3].map(slot => {
                 const hasMix = !!store.user?.preferences?.customPresets?.[slot];
                 return (
-                  <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div key={slot} className="custom-preset-slot">
                     {hasMix ? (
                       <>
-                        <button onClick={() => store.applyCustomPreset(slot)} className="preset-btn" aria-label={`Apply Mix ${slot}`}>
-                          {d.mix} 0{slot}
-                        </button>
-                        <button onClick={() => store.clearCustomPreset(slot)} className="btn-icon" style={{ opacity: 0.5, width: '24px' }} aria-label={`Clear Mix ${slot}`}>
-                          <FiX size={16} />
-                        </button>
+                        <button onClick={() => store.applyCustomPreset(slot)} className="preset-btn" aria-label={`Apply Mix ${slot}`}>{d.mix} 0{slot}</button>
+                        <button onClick={() => store.clearCustomPreset(slot)} className="btn-icon" style={{ opacity: 0.5, width: '24px' }} aria-label={`Clear Mix ${slot}`}><FiX size={16} /></button>
                       </>
                     ) : (
                       <button
                         onClick={() => {
-                          const active = store.sounds.filter(s => s.isPlaying);
-                          if (!active.length) return showShareToast(d.noActiveToSave);
+                          if (!store.sounds.some(s => s.isPlaying)) return showShareToast(d.noActiveToSave);
                           store.saveCustomPreset(slot);
                           showShareToast(`${d.mix} 0${slot} ${d.saved}`);
                         }}
-                        className="preset-btn"
-                        style={{ borderStyle: 'dashed', opacity: 0.6 }}
+                        className="preset-btn preset-btn--dashed"
                         aria-label={`Save Mix ${slot}`}
                       >
                         + {d.saveMix} 0{slot}
@@ -644,12 +556,7 @@ export default function App() {
         <div className="dynamic-pill" role="region" aria-label="Global Controls">
           <div className="pill-left">
             <div className="master-play-wrap">
-              <button
-                onClick={store.toggleGlobalPlay}
-                className={`pill-master-btn ${store.isGlobalPlaying ? 'active' : ''}`}
-                aria-label={store.isGlobalPlaying ? 'Pause global audio' : 'Play global audio'}
-                aria-pressed={store.isGlobalPlaying}
-              >
+              <button onClick={store.toggleGlobalPlay} className={`pill-master-btn ${store.isGlobalPlaying ? 'active' : ''}`} aria-label={store.isGlobalPlaying ? 'Pause global audio' : 'Play global audio'} aria-pressed={store.isGlobalPlaying}>
                 {store.isGlobalPlaying ? <FiPause size={18} aria-hidden="true" /> : <FiPlay size={18} className="play-offset" aria-hidden="true" />}
               </button>
             </div>
@@ -667,7 +574,7 @@ export default function App() {
           <div className="pill-divider" aria-hidden="true" />
           <div className="pill-center">
             <FiClock size={16} color="rgba(255,255,255,0.4)" aria-hidden="true" />
-            <select value={timerPreset} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTimer(parseInt(e.target.value))} className="clean-select" aria-label={d.timer}>
+            <select value={timerPreset} onChange={e => handleTimer(parseInt(e.target.value))} className="clean-select" aria-label={d.timer}>
               <option value={0}>{d.timer}</option>
               {[1, 5, 15, 30, 60].map(m => <option key={m} value={m}>{m} {d.min}</option>)}
             </select>
@@ -678,7 +585,7 @@ export default function App() {
             <div className="vol-wrapper">
               <input
                 type="range" min="0" max="100" value={store.globalVolume}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.updateGlobalVolume(parseInt(e.target.value))}
+                onChange={e => store.updateGlobalVolume(parseInt(e.target.value))}
                 className="vol-slider"
                 style={{ '--vol': `${store.globalVolume}%` } as any}
                 aria-label="Global Volume"

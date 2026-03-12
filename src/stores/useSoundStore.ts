@@ -1,5 +1,4 @@
-﻿// 文件路径: src/stores/useSoundStore.ts
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { Howl } from 'howler';
 import SHA256 from 'crypto-js/sha256';
 
@@ -141,6 +140,19 @@ const restoreState = () => {
     : { ...base, globalVolume: 80, timerDuration: 15, sounds: freshSounds(), isGlobalPlaying: false, lastActiveIds: [] as number[] };
 };
 
+/** Apply a volume config: stop all, set sounds, start playing. Shared by presets and URL mixes. */
+const applyVolConfig = (get: () => AppState, set: (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void, vols: Record<number, number>, timer?: { active: boolean; duration: number }) => {
+  stopAll();
+  set(state => ({
+    sounds: mapSounds(state.sounds, s => ({ isPlaying: s.id in vols, volume: vols[s.id] ?? s.volume })),
+    isGlobalPlaying: true,
+    lastActiveIds: Object.keys(vols).map(Number),
+    ...(timer ? { isTimerActive: timer.active, timerDuration: timer.duration } : {}),
+  }));
+  get().rehydrateAudio();
+  get()._savePreferences();
+};
+
 /* ── Store ─────────────────────────────────────────────────────────────── */
 
 export const useSoundStore = create<AppState>((set, get) => ({
@@ -151,14 +163,14 @@ export const useSoundStore = create<AppState>((set, get) => ({
   prevVolume: 80,
 
   _savePreferences: () => {
-    const state = get();
-    if (!state.isLoggedIn || !state.user) return;
+    const { isLoggedIn, user, globalVolume, timerDuration, lastActiveIds, sounds } = get();
+    if (!isLoggedIn || !user) return;
     persistUser({
-      ...state.user,
+      ...user,
       preferences: {
-        globalVolume: state.globalVolume, timerDuration: state.timerDuration, lastActiveIds: state.lastActiveIds,
-        soundStates: state.sounds.map(({ id, volume, isPlaying }) => ({ id, volume, isPlaying })),
-        customPresets: state.user.preferences?.customPresets,
+        globalVolume, timerDuration, lastActiveIds,
+        soundStates: sounds.map(({ id, volume, isPlaying }) => ({ id, volume, isPlaying })),
+        customPresets: user.preferences?.customPresets,
       },
     });
   },
@@ -177,15 +189,13 @@ export const useSoundStore = create<AppState>((set, get) => ({
   rehydrateAudio: () => {
     const { sounds, globalVolume } = get();
     sounds.forEach(s => {
-      if (s.isPlaying && s.audioUrl) {
+      if (s.isPlaying && s.audioUrl)
         playHowl(ensureHowl(s.id, s.audioUrl, s.volume, globalVolume), mixVol(s.volume, globalVolume));
-      }
     });
   },
 
   toggleSound: (id) => {
-    const state = get();
-    if (!state.sounds.find(s => s.id === id)?.audioUrl) return;
+    if (!get().sounds.find(s => s.id === id)?.audioUrl) return;
     set(s => {
       const upd = s.sounds.map(track => {
         if (track.id !== id) return track;
@@ -194,24 +204,23 @@ export const useSoundStore = create<AppState>((set, get) => ({
         playing ? playHowl(h, mixVol(track.volume, s.globalVolume)) : stopHowl(h);
         return { ...track, isPlaying: playing };
       });
-      return { sounds: upd, isGlobalPlaying: upd.some(track => track.isPlaying) };
+      return { sounds: upd, isGlobalPlaying: upd.some(t => t.isPlaying) };
     });
     get()._savePreferences();
   },
 
   updateSoundVolume: (id, vol) => {
-    const state = get();
-    howls[id]?.volume(mixVol(vol, state.globalVolume));
-    set({ sounds: state.sounds.map(s => s.id === id ? { ...s, volume: vol } : s) });
+    howls[id]?.volume(mixVol(vol, get().globalVolume));
+    set(s => ({ sounds: s.sounds.map(t => t.id === id ? { ...t, volume: vol } : t) }));
     get()._savePreferences();
   },
 
   toggleMute: () => {
-    const { globalVolume, isMuted, prevVolume, sounds, _savePreferences } = get();
+    const { globalVolume, isMuted, prevVolume, sounds } = get();
     const targetVol = isMuted ? (prevVolume > 0 ? prevVolume : 80) : 0;
     set({ prevVolume: isMuted ? prevVolume : globalVolume, globalVolume: targetVol, isMuted: !isMuted });
     sounds.forEach(s => { howls[s.id]?.volume(mixVol(s.volume, targetVol)); });
-    _savePreferences();
+    get()._savePreferences();
   },
 
   updateGlobalVolume: (vol) => {
@@ -225,9 +234,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
     get()._savePreferences();
   },
 
-  toggleTimer: () => {
-    set(s => ({ isTimerActive: !s.isTimerActive && s.timerDuration > 0 }));
-  },
+  toggleTimer: () => set(s => ({ isTimerActive: !s.isTimerActive && s.timerDuration > 0 })),
 
   toggleGlobalPlay: () => {
     const state = get();
@@ -245,52 +252,31 @@ export const useSoundStore = create<AppState>((set, get) => ({
 
   applyPreset: (type) => {
     const conf = PRESETS[type];
-    if (!conf) return;
-    stopAll();
-    set(state => ({
-      sounds: mapSounds(state.sounds, s => ({ isPlaying: s.id in conf.vols, volume: conf.vols[s.id] ?? s.volume })),
-      isGlobalPlaying: true, isTimerActive: true, timerDuration: conf.time, lastActiveIds: Object.keys(conf.vols).map(Number),
-    }));
-    get().rehydrateAudio();
-    get()._savePreferences();
+    if (conf) applyVolConfig(get, set, conf.vols, { active: true, duration: conf.time });
   },
 
   saveCustomPreset: (slot) => {
-    const state = get();
-    if (!state.user) return;
-    const active = state.sounds.filter(s => s.isPlaying);
+    const { user, sounds } = get();
+    if (!user) return;
+    const active = sounds.filter(s => s.isPlaying);
     if (!active.length) return;
-
     const vols = Object.fromEntries(active.map(s => [s.id, s.volume]));
-    const prefs = state.user.preferences || { globalVolume: 80, timerDuration: 15, soundStates: [], lastActiveIds: [] };
-
-    set({ user: { ...state.user, preferences: { ...prefs, customPresets: { ...(prefs.customPresets || {}), [slot]: vols } } } });
+    const prefs = user.preferences || { globalVolume: 80, timerDuration: 15, soundStates: [], lastActiveIds: [] };
+    set({ user: { ...user, preferences: { ...prefs, customPresets: { ...(prefs.customPresets || {}), [slot]: vols } } } });
     get()._savePreferences();
   },
 
   applyCustomPreset: (slot) => {
-    const state = get();
-    const vols = state.user?.preferences?.customPresets?.[slot];
-    if (!vols) return;
-
-    stopAll();
-    set({
-      sounds: mapSounds(state.sounds, s => ({ isPlaying: s.id in vols, volume: vols[s.id] ?? s.volume })),
-      isGlobalPlaying: true, lastActiveIds: Object.keys(vols).map(Number),
-    });
-    get().rehydrateAudio();
-    get()._savePreferences();
+    const vols = get().user?.preferences?.customPresets?.[slot];
+    if (vols) applyVolConfig(get, set, vols);
   },
 
   clearCustomPreset: (slot) => {
-    const state = get();
-    if (!state.user?.preferences?.customPresets) return;
-
-    const prefs = state.user.preferences;
-    const customPresets = { ...prefs.customPresets };
+    const { user } = get();
+    if (!user?.preferences?.customPresets) return;
+    const customPresets = { ...user.preferences.customPresets };
     delete customPresets[slot];
-
-    set({ user: { ...state.user, preferences: { ...prefs, customPresets } } });
+    set({ user: { ...user, preferences: { ...user.preferences, customPresets } } });
     get()._savePreferences();
   },
 
@@ -301,23 +287,12 @@ export const useSoundStore = create<AppState>((set, get) => ({
         .map(([k, v]) => [NAME_TO_ID[k.toLowerCase()], parseInt(v, 10)])
         .filter(([id, v]) => id && !isNaN(v as number) && (v as number) >= 0 && (v as number) <= 100)
     );
-    if (!Object.keys(vols).length) return;
-
-    stopAll();
-    set(state => ({
-      sounds: mapSounds(state.sounds, s => ({ isPlaying: s.id in vols, volume: s.id in vols ? vols[s.id] : s.volume })),
-      isGlobalPlaying: true, lastActiveIds: Object.keys(vols).map(Number),
-    }));
-    get().rehydrateAudio();
-    get()._savePreferences();
+    if (Object.keys(vols).length) applyVolConfig(get, set, vols);
   },
 
   resetMix: () => {
     stopAll();
-    set(state => ({
-      sounds: mapSounds(state.sounds, () => ({ isPlaying: false, volume: 50 })),
-      globalVolume: 80, isGlobalPlaying: false, isTimerActive: false, timerDuration: 15, lastActiveIds: [],
-    }));
+    set({ sounds: mapSounds(get().sounds, () => ({ isPlaying: false, volume: 50 })), globalVolume: 80, isGlobalPlaying: false, isTimerActive: false, timerDuration: 15, lastActiveIds: [] });
     get()._savePreferences();
   },
 
@@ -325,7 +300,6 @@ export const useSoundStore = create<AppState>((set, get) => ({
     if (!p) return false;
     const found = safeParse<User[]>(SK_USERS, []).find(usr => usr.username === u && usr.password === hashPwd(p));
     if (!found) return false;
-
     set({ user: found, isLoggedIn: true, isLoginModalOpen: false, ...(found.preferences ? fromPrefs(found.preferences) : {}) });
     if (found.preferences) get().rehydrateAudio();
     localStorage.setItem(SK_CURR, JSON.stringify(found));
@@ -336,7 +310,6 @@ export const useSoundStore = create<AppState>((set, get) => ({
     if (!p) return false;
     const users = safeParse<User[]>(SK_USERS, []);
     if (users.some(usr => usr.username === u)) return false;
-
     const nu: User = { id: Date.now().toString(), username: u, password: hashPwd(p) };
     users.push(nu);
     localStorage.setItem(SK_USERS, JSON.stringify(users));
@@ -352,19 +325,12 @@ export const useSoundStore = create<AppState>((set, get) => ({
   },
 
   deleteAccount: () => {
-    const state = get();
-    if (!state.user) return;
-    const users = safeParse<User[]>(SK_USERS, []).filter(u => u.username !== state.user!.username);
-    localStorage.setItem(SK_USERS, JSON.stringify(users));
-    state.logout();
+    const { user, logout } = get();
+    if (!user) return;
+    localStorage.setItem(SK_USERS, JSON.stringify(safeParse<User[]>(SK_USERS, []).filter(u => u.username !== user.username)));
+    logout();
   },
 
-  toggleLoginModal: (open?) => {
-    set(s => ({ isLoginModalOpen: open ?? !s.isLoginModalOpen }));
-  },
-
-  setLang: (lang) => {
-    localStorage.setItem(SK_LANG, JSON.stringify(lang));
-    set({ lang });
-  },
+  toggleLoginModal: (open?) => set(s => ({ isLoginModalOpen: open ?? !s.isLoginModalOpen })),
+  setLang: (lang) => { localStorage.setItem(SK_LANG, JSON.stringify(lang)); set({ lang }); },
 }));
