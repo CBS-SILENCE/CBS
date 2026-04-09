@@ -42,6 +42,7 @@ export interface AppState {
   updateGlobalVolume: (vol: number) => void;
   setTimerDuration: (m: number) => void;
   applyPreset: (type: PresetType) => void;
+  applyRandomMix: () => void;
   saveCustomPreset: (slot: number) => void;
   applyCustomPreset: (slot: number) => void;
   clearCustomPreset: (slot: number) => void;
@@ -252,6 +253,20 @@ export const useSoundStore = create<AppState>((set, get) => ({
   applyPreset: (type) => {
     const conf = PRESETS[type];
     if (conf) applyVolConfig(get, set, conf.vols, { active: true, duration: conf.time });
+  },
+
+  applyRandomMix: () => {
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8];
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    const selectedIds = ids.slice(0, 3);
+    const vols: Record<number, number> = {};
+    selectedIds.forEach(id => {
+      vols[id] = Math.floor(Math.random() * 51) + 30; // 分配 30 到 80 的随机音量
+    });
+    applyVolConfig(get, set, vols);
   },
 
   saveCustomPreset: (slot) => {

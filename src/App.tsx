@@ -1,4 +1,3 @@
-﻿// 文件路径: src/App.tsx
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import './App.css';
 import { useSoundStore } from './stores/useSoundStore';
@@ -39,6 +38,7 @@ const dict: Record<Lang, Record<string, string>> = {
     privacy: 'Privadesa',
     changeLang: 'CANVIAR IDIOMA',
     userMenu: "MENÚ D'USUARI",
+    ignot: "L'IGNOT",
   },
   es: {
     estado: 'ESTADO', activo: 'ACTIVO', espera: 'ESPERA', pistas: 'PISTAS', volumen: 'VOLUMEN',
@@ -58,6 +58,7 @@ const dict: Record<Lang, Record<string, string>> = {
     privacy: 'Privacidad',
     changeLang: 'CAMBIAR IDIOMA',
     userMenu: 'MENÚ DE USUARIO',
+    ignot: 'IGNÓTO',
   },
 };
 
@@ -74,6 +75,18 @@ const authorMap: Record<number, { name: string; url: string }> = {
   6: { name: 'santiago.torres1314', url: 'https://freesound.org/people/santiago.torres1314/sounds/677563/' },
   7: { name: 'klankbeeld', url: 'https://freesound.org/people/klankbeeld/sounds/810338/?' },
   8: { name: 'kyles', url: 'https://freesound.org/people/kyles/sounds/637746/' },
+};
+
+/* 根据图片氛围制定的专属边缘呼吸RGB色值 */
+const themeColorMap: Record<number, string> = {
+  1: '90, 140, 180',  // Rain: 微弱冷灰蓝
+  2: '110, 90, 150',  // Cricket: 夜晚幽紫
+  3: '0, 120, 200',   // Waves: 深海蓝
+  4: '140, 100, 220', // Thunder: 暗紫色
+  5: '220, 80, 20',   // Fire: 余烬橙红
+  6: '160, 190, 190', // Wind: 苍白青绿
+  7: '220, 160, 80',  // Birds: 黎明金黄
+  8: '160, 110, 60',  // Woodcrack: 枯木琥珀色
 };
 
 /* ── Animation Presets ─────────────────────────────────────────────────── */
@@ -101,6 +114,8 @@ const useToast = (duration: number): [string, (msg: string) => void] => {
 
 const CustomCursor = () => {
   const x = useMotionValue(-100), y = useMotionValue(-100);
+  const trailX = useSpring(x, { stiffness: 600, damping: 25, mass: 0.2 });
+  const trailY = useSpring(y, { stiffness: 600, damping: 25, mass: 0.2 });
   const [hover, setHover] = useState(false);
 
   useEffect(() => {
@@ -114,7 +129,21 @@ const CustomCursor = () => {
     return () => window.removeEventListener('mousemove', onMove);
   }, [x, y]);
 
-  return <motion.div className="custom-cursor" aria-hidden="true" style={{ x, y }} animate={{ scale: hover ? 1.5 : 1, opacity: hover ? 0.3 : 1 }} transition={{ duration: 0.3 }} />;
+  return (
+    <>
+      <svg style={{ position: 'absolute', width: 0, height: 0 }} aria-hidden="true">
+        <filter id="goo">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+          <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+          <feBlend in="SourceGraphic" in2="goo" />
+        </filter>
+      </svg>
+      <div className="cursor-goo-container">
+        <motion.div className="custom-cursor-trail" aria-hidden="true" style={{ x: trailX, y: trailY }} animate={{ scale: hover ? 0 : 1 }} />
+        <motion.div className="custom-cursor" aria-hidden="true" style={{ x, y }} animate={{ scale: hover ? 1.5 : 1, opacity: hover ? 0.3 : 1 }} transition={{ duration: 0.3 }} />
+      </div>
+    </>
+  );
 };
 
 /* ── StatusMonitor (HUD) ───────────────────────────────────────────────── */
@@ -236,6 +265,7 @@ interface SoundCardProps {
 const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, updateSoundVolume, lang }: SoundCardProps) => {
   const label = lang === 'ca' ? s.name_ca : s.name_es;
   const author = authorMap[s.id];
+  const themeRgb = themeColorMap[s.id] || '255, 255, 255';
 
   return (
     <div style={{ marginTop: i % 2 ? 120 : 0 }}>
@@ -249,6 +279,7 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
           onMouseLeave={() => setHovered(null)}
           animate={{ opacity: isDim ? 0.55 : 1, scale: isDim ? 0.97 : 1, filter: isDim ? 'blur(2px)' : 'blur(0px)' }}
           transition={{ duration: 0.4 }}
+          style={{ '--theme-color-rgb': themeRgb } as React.CSSProperties}
         >
             <div className="card-bg-container" aria-hidden="true">
               <motion.div
@@ -309,6 +340,13 @@ const fmtTime = (s: number): string => {
 
 /* ── App (Root) ────────────────────────────────────────────────────────── */
 
+const zenQuotes = [
+  "En el ruido, encuentra tu ancla.",
+  "Escucha el silencio.",
+  "Respira. Pausa. Siente.",
+  "El mundo se desvanece."
+];
+
 export default function App() {
   const store = useSoundStore();
   const d = dict[store.lang];
@@ -321,6 +359,10 @@ export default function App() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const [logoRipple, setLogoRipple] = useState(false);
+  
+  const [isIdle, setIsIdle] = useState(false);
+  const [currentZenQuote, setCurrentZenQuote] = useState('');
+
   const triggerRipple = () => {
     if (logoRipple) return;
     setLogoRipple(true);
@@ -336,14 +378,34 @@ export default function App() {
   const heroSc = useTransform(smooth, [0, 0.4], [1, 0.9]);
   const arrowOp = useTransform(smooth, [0, 0.05], [1, 0]);
 
-  /* logo scroll dissolve: fade out + float up over 0→35% scroll */
-  const logoOp = useTransform(smooth, [0, 0.35], [1, 0]);
-  const logoY = useTransform(smooth, [0, 0.35], [0, -30]);
-
-  /* timer progress: 0 → 100 as time elapses */
   const timerProgress = store.initialTimerDuration > 0
     ? Math.min(100, Math.max(0, ((store.initialTimerDuration - store.timerDuration) / store.initialTimerDuration) * 100))
     : 0;
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    const resetIdle = () => {
+      setIsIdle(false);
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        setCurrentZenQuote(zenQuotes[Math.floor(Math.random() * zenQuotes.length)]);
+        setIsIdle(true);
+      }, 10000);
+    };
+
+    window.addEventListener('mousemove', resetIdle, { passive: true });
+    window.addEventListener('keydown', resetIdle, { passive: true });
+    window.addEventListener('click', resetIdle, { passive: true });
+    
+    resetIdle();
+
+    return () => {
+      window.removeEventListener('mousemove', resetIdle);
+      window.removeEventListener('keydown', resetIdle);
+      window.removeEventListener('click', resetIdle);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   useEffect(() => {
     if (window.location.search) {
@@ -418,241 +480,239 @@ export default function App() {
   };
 
   return (
-    <div className="page-wrapper">
+    <>
       <CustomCursor />
-      <LoginModal />
-      <ConfirmDeleteModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={() => { store.deleteAccount(); setShowDeleteConfirm(false); }} />
+      
+      <div className={`zen-overlay ${isIdle ? 'active' : ''}`} aria-hidden="true">
+        <p className="zen-text">{currentZenQuote}</p>
+      </div>
 
-      {/* Channel B: global toast */}
-      <AnimatePresence>
-        {globalToastMsg && (
-          <motion.div
-            className="global-toast"
-            initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
-            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-            exit={{ opacity: 0, scale: 1.05, x: '-50%', y: '-50%' }}
-            transition={{ duration: 0.4, ease }}
-          >
-            [ {globalToastMsg} ]
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="page-wrapper">
+        <LoginModal />
+        <ConfirmDeleteModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={() => { store.deleteAccount(); setShowDeleteConfirm(false); }} />
 
-      {/* Channel C: track toast */}
-      <AnimatePresence>
-        {trackToastMsg && (
-          <motion.div
-            className="toast-msg track-toast"
-            initial={{ opacity: 0, y: 20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-          >
-            {trackToastMsg}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {globalToastMsg && (
+            <motion.div
+              className="global-toast"
+              initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
+              animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+              exit={{ opacity: 0, scale: 1.05, x: '-50%', y: '-50%' }}
+              transition={{ duration: 0.4, ease }}
+            >
+              [ {globalToastMsg} ]
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Logo — scroll dissolve */}
-      <motion.div className={`document-logo ${logoRipple ? 'ripple-active' : ''}`} aria-hidden="true" onClick={triggerRipple} style={{ opacity: logoOp, y: logoY } as any}>
-        <img src={logoImg} alt="Silence Logo" className="logo-img" />
-      </motion.div>
+        <AnimatePresence>
+          {trackToastMsg && (
+            <motion.div
+              className="toast-msg track-toast"
+              initial={{ opacity: 0, y: 20, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: -20, x: '-50%' }}
+            >
+              {trackToastMsg}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Navbar */}
-      <motion.nav className="navbar" initial={{ y: -100 }} animate={{ y: 0 }} transition={trans()} aria-label="Main Navigation">
-        <div className="nav-left"></div>
-        <div className="nav-center"><StatusMonitor /></div>
-        <div className="nav-right">
-          <div className="share-anchor">
-            <button onClick={handleShare} className="btn-icon nav-tooltip" aria-label={d.share}>
-              <FiShare2 size={18} aria-hidden="true" />
-            </button>
-            {/* Channel A: share toast */}
-            <AnimatePresence>
-              {shareToastMsg && (
-                <motion.div
-                  className="toast-msg share-toast"
-                  role="status" aria-live="polite"
-                  initial={{ opacity: 0, y: 10, x: '-50%' }}
-                  animate={{ opacity: 1, y: 0, x: '-50%' }}
-                  exit={{ opacity: 0, y: 10, x: '-50%' }}
-                  transition={{ duration: 0.3, ease }}
-                >
-                  {shareToastMsg}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+        <div className={`document-logo ${logoRipple ? 'ripple-active' : ''}`} aria-hidden="true" onClick={triggerRipple}>
+          <img src={logoImg} alt="Silence Logo" className="logo-img" />
+        </div>
 
-          <button onClick={() => store.setLang(store.lang === 'ca' ? 'es' : 'ca')} className="btn-icon btn-lang nav-tooltip" aria-label={d.changeLang}>
-            <FiGlobe size={16} aria-hidden="true" /> {store.lang === 'ca' ? 'CA' : 'ES'}
-          </button>
-
-          {store.isLoggedIn ? (
-            <div className="user-profile-container" ref={userMenuRef}>
-              <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="btn-icon btn-user-menu nav-tooltip" aria-label={d.userMenu} aria-expanded={isUserMenuOpen}>
-                <FiUser aria-hidden="true" /> {store.user?.username}
-                <motion.div animate={{ rotate: isUserMenuOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                  <FiChevronDown size={14} aria-hidden="true" />
-                </motion.div>
+        <motion.nav className="navbar" initial={{ y: -100 }} animate={{ y: 0 }} transition={trans()} aria-label="Main Navigation">
+          <div className="nav-left"></div>
+          <div className="nav-center"><StatusMonitor /></div>
+          <div className="nav-right">
+            <div className="share-anchor">
+              <button onClick={handleShare} className="btn-icon nav-tooltip" aria-label={d.share} title={d.share}>
+                <FiShare2 size={18} aria-hidden="true" />
               </button>
               <AnimatePresence>
-                {isUserMenuOpen && (
+                {shareToastMsg && (
                   <motion.div
-                    className="dropdown-menu"
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease }}
+                    className="toast-msg share-toast"
+                    role="status" aria-live="polite"
+                    initial={{ opacity: 0, y: 10, x: '-50%' }}
+                    animate={{ opacity: 1, y: 0, x: '-50%' }}
+                    exit={{ opacity: 0, y: 10, x: '-50%' }}
+                    transition={{ duration: 0.3, ease }}
                   >
-                    <button className="dropdown-item" onClick={() => { store.logout(); setIsUserMenuOpen(false); }}>
-                      <FiLogOut size={14} aria-hidden="true" /> {d.logout}
-                    </button>
-                    <button className="dropdown-item dropdown-item--danger" onClick={() => { setShowDeleteConfirm(true); setIsUserMenuOpen(false); }}>
-                      <FiUserX size={14} aria-hidden="true" /> {d.deleteAcc}
-                    </button>
+                    {shareToastMsg}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-          ) : (
-            <button onClick={() => store.toggleLoginModal(true)} className="btn-login" aria-label={d.login}>{d.login}</button>
-          )}
-        </div>
-      </motion.nav>
 
-      {/* Main */}
-      <main className="main-content" role="main">
-        <motion.section className="hero-section" style={{ y: heroY, opacity: heroOp, scale: heroSc } as any} aria-labelledby="hero-heading">
-          <div aria-hidden="true">
-            {[d.hero1, d.hero2].map((txt, i) => (
-              <div key={i} className="hero-text-mask">
-                <motion.h1 variants={txtVar} initial="hidden" animate="show" transition={{ delay: i * 0.1 }}>{txt}</motion.h1>
-              </div>
-            ))}
-          </div>
-          <h1 id="hero-heading" className="sr-only">{d.hero1} {d.hero2}</h1>
-          <motion.p className="hero-subtitle" {...fadeUp(0.4)}>{d.subtitle}</motion.p>
+            <button onClick={() => store.setLang(store.lang === 'ca' ? 'es' : 'ca')} className="btn-icon btn-lang nav-tooltip" aria-label={d.changeLang}>
+              <FiGlobe size={16} aria-hidden="true" /> {store.lang === 'ca' ? 'CA' : 'ES'}
+            </button>
 
-          <motion.div className="preset-modes" {...fadeUp(0.6)} aria-label="Preset Modes">
-            {(['focus', 'relax', 'sleep', 'meditate', 'reading'] as PresetType[]).map(p => (
-              <button key={p} onClick={() => store.applyPreset(p)} className="preset-btn" aria-label={`Preset ${p}`}>{p.toUpperCase()}</button>
-            ))}
-            <div className="preset-divider" aria-hidden="true" />
-            <button onClick={store.resetMix} className="preset-btn" aria-label="Reset all volumes and tracks">{d.reset}</button>
-          </motion.div>
-
-          {store.isLoggedIn && (
-            <motion.div className="preset-modes custom-presets" {...fadeUp(0.7)} aria-label="Custom Presets">
-              <span className="custom-presets-label">{d.myMixes}</span>
-              {[1, 2, 3].map(slot => {
-                const hasMix = !!store.user?.preferences?.customPresets?.[slot];
-                return (
-                  <div key={slot} className="custom-preset-slot">
-                    {hasMix ? (
-                      <>
-                        <button onClick={() => store.applyCustomPreset(slot)} className="preset-btn" aria-label={`Apply Mix ${slot}`}>{d.mix} 0{slot}</button>
-                        <button onClick={() => store.clearCustomPreset(slot)} className="btn-icon" style={{ opacity: 0.5, width: '24px' }} aria-label={`Clear Mix ${slot}`}><FiX size={16} /></button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          if (!store.sounds.some(s => s.isPlaying)) return showShareToast(d.noActiveToSave);
-                          store.saveCustomPreset(slot);
-                          showShareToast(`${d.mix} 0${slot} ${d.saved}`);
-                        }}
-                        className="preset-btn preset-btn--dashed"
-                        aria-label={`Save Mix ${slot}`}
-                      >
-                        + {d.saveMix} 0{slot}
+            {store.isLoggedIn ? (
+              <div className="user-profile-container" ref={userMenuRef}>
+                <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="btn-icon btn-user-menu nav-tooltip" aria-label={d.userMenu} aria-expanded={isUserMenuOpen}>
+                  <FiUser aria-hidden="true" /> {store.user?.username}
+                  <motion.div animate={{ rotate: isUserMenuOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <FiChevronDown size={14} aria-hidden="true" />
+                  </motion.div>
+                </button>
+                <AnimatePresence>
+                  {isUserMenuOpen && (
+                    <motion.div
+                      className="dropdown-menu"
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.2, ease }}
+                    >
+                      <button className="dropdown-item" onClick={() => { store.logout(); setIsUserMenuOpen(false); }}>
+                        <FiLogOut size={14} aria-hidden="true" /> {d.logout}
                       </button>
-                    )}
-                  </div>
-                );
-              })}
-            </motion.div>
-          )}
-
-          <motion.div className="scroll-indicator" style={{ opacity: arrowOp } as any} animate={{ y: [0, 15, 0] }} transition={{ repeat: Infinity, duration: 2 }} aria-hidden="true">
-            <FiChevronDown size={32} />
-          </motion.div>
-        </motion.section>
-
-        {/* Sound Gallery */}
-        <div className="sounds-gallery" aria-label="Sound Mixers">
-          {store.sounds.map((s, i) => (
-            <SoundCard key={s.id} s={s} i={i} isDim={hovered !== null && hovered !== s.id} hovered={hovered} setHovered={setHovered} toggleSound={store.toggleSound} updateSoundVolume={store.updateSoundVolume} lang={store.lang} />
-          ))}
-        </div>
-      </main>
-
-      {/* Dynamic Island */}
-      <motion.div className="dynamic-island-wrapper" initial={{ y: 150, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={trans(0.8)}>
-        <div className="dynamic-pill" role="region" aria-label="Global Controls">
-          {/* Timer progress bar */}
-          <AnimatePresence>
-            {store.isTimerActive && store.initialTimerDuration > 0 && (
-              <motion.div
-                className="timer-progress-bar"
-                style={{ width: `${timerProgress}%` }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ opacity: { duration: 0.4 } }}
-                aria-hidden="true"
-              />
+                      <button className="dropdown-item dropdown-item--danger" onClick={() => { setShowDeleteConfirm(true); setIsUserMenuOpen(false); }}>
+                        <FiUserX size={14} aria-hidden="true" /> {d.deleteAcc}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <button onClick={() => store.toggleLoginModal(true)} className="btn-login" aria-label={d.login}>{d.login}</button>
             )}
-          </AnimatePresence>
-          <div className="pill-left">
-            <div className="master-play-wrap">
-              <button onClick={store.toggleGlobalPlay} className={`pill-master-btn ${store.isGlobalPlaying ? 'active' : ''}`} aria-label={store.isGlobalPlaying ? 'Pause global audio' : 'Play global audio'} aria-pressed={store.isGlobalPlaying}>
-                {store.isGlobalPlaying ? <FiPause size={18} aria-hidden="true" /> : <FiPlay size={18} className="play-offset" aria-hidden="true" />}
-              </button>
-            </div>
-            <div className="pill-status" aria-live="polite">
-              {store.isTimerActive && (
-                <>
-                  <div className="timer-corner timer-corner--tl" aria-hidden="true" />
-                  <div className="timer-corner timer-corner--br" aria-hidden="true" />
-                </>
-              )}
-              <span className="pill-label">{store.isGlobalPlaying || store.isTimerActive ? d.activo : d.standby}</span>
-              {store.isTimerActive && <span className="pill-time" role="timer">{fmtTime(store.timerDuration)}</span>}
-            </div>
           </div>
-          <div className="pill-divider" aria-hidden="true" />
-          <div className="pill-center">
-            <FiClock size={16} color="rgba(255,255,255,0.4)" aria-hidden="true" />
-            <select value={timerPreset} onChange={e => handleTimer(parseInt(e.target.value))} className="clean-select" aria-label={d.timer}>
-              <option value={0}>{d.timer}</option>
-              {[1, 5, 15, 30, 60].map(m => <option key={m} value={m}>{m} {d.min}</option>)}
-            </select>
-          </div>
-          <div className="pill-divider hidden-mobile" aria-hidden="true" />
-          <div className="pill-right hidden-mobile">
-            <FiVolume2 size={18} color="rgba(255,255,255,0.6)" className="vol-icon" aria-hidden="true" />
-            <div className="vol-wrapper">
-              <input
-                type="range" min="0" max="100" value={store.globalVolume}
-                onChange={e => store.updateGlobalVolume(parseInt(e.target.value))}
-                className="vol-slider"
-                style={{ '--vol': `${store.globalVolume}%` } as any}
-                aria-label="Global Volume"
-              />
-            </div>
-          </div>
-        </div>
-      </motion.div>
+        </motion.nav>
 
-      {/* 法律免责声明 */}
-      <footer className="legal-footer">
-        <div className="legal-footer-content">
-          <h3 className="legal-title">{d.legalTitle}</h3>
-          <p className="legal-desc">{d.disclaimer}</p>
-          <div className="legal-links">
-            <span>© 2026 SILENCE / 01</span>
+        <main className="main-content" role="main">
+          <motion.section className="hero-section" style={{ y: heroY, opacity: heroOp, scale: heroSc } as any} aria-labelledby="hero-heading">
+            <div aria-hidden="true">
+              {[d.hero1, d.hero2].map((txt, i) => (
+                <div key={i} className="hero-text-mask">
+                  <motion.h1 variants={txtVar} initial="hidden" animate="show" transition={{ delay: i * 0.1 }}>{txt}</motion.h1>
+                </div>
+              ))}
+            </div>
+            <h1 id="hero-heading" className="sr-only">{d.hero1} {d.hero2}</h1>
+            <motion.p className="hero-subtitle" {...fadeUp(0.4)}>{d.subtitle}</motion.p>
+
+            <motion.div className="preset-modes" {...fadeUp(0.6)} aria-label="Preset Modes">
+              {(['focus', 'relax', 'sleep', 'meditate', 'reading'] as PresetType[]).map(p => (
+                <button key={p} onClick={() => store.applyPreset(p)} className="preset-btn" aria-label={`Preset ${p}`}>{p.toUpperCase()}</button>
+              ))}
+              <button onClick={() => { store.applyRandomMix(); triggerRipple(); }} className="preset-btn" aria-label="Random Mix">{d.ignot}</button>
+              <div className="preset-divider" aria-hidden="true" />
+              <button onClick={store.resetMix} className="preset-btn" aria-label="Reset all volumes and tracks">{d.reset}</button>
+            </motion.div>
+
+            {store.isLoggedIn && (
+              <motion.div className="preset-modes custom-presets" {...fadeUp(0.7)} aria-label="Custom Presets">
+                <span className="custom-presets-label">{d.myMixes}</span>
+                {[1, 2, 3].map(slot => {
+                  const hasMix = !!store.user?.preferences?.customPresets?.[slot];
+                  return (
+                    <div key={slot} className="custom-preset-slot">
+                      {hasMix ? (
+                        <>
+                          <button onClick={() => store.applyCustomPreset(slot)} className="preset-btn" aria-label={`Apply Mix ${slot}`}>{d.mix} 0{slot}</button>
+                          <button onClick={() => store.clearCustomPreset(slot)} className="btn-icon" style={{ opacity: 0.5, width: '24px' }} aria-label={`Clear Mix ${slot}`}><FiX size={16} /></button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (!store.sounds.some(s => s.isPlaying)) return showShareToast(d.noActiveToSave);
+                            store.saveCustomPreset(slot);
+                            showShareToast(`${d.mix} 0${slot} ${d.saved}`);
+                          }}
+                          className="preset-btn preset-btn--dashed"
+                          aria-label={`Save Mix ${slot}`}
+                        >
+                          + {d.saveMix} 0{slot}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </motion.div>
+            )}
+
+            <motion.div className="scroll-indicator" style={{ opacity: arrowOp } as any} animate={{ y: [0, 15, 0] }} transition={{ repeat: Infinity, duration: 2 }} aria-hidden="true">
+              <FiChevronDown size={32} />
+            </motion.div>
+          </motion.section>
+
+          <div className="sounds-gallery" aria-label="Sound Mixers">
+            {store.sounds.map((s, i) => (
+              <SoundCard key={s.id} s={s} i={i} isDim={hovered !== null && hovered !== s.id} hovered={hovered} setHovered={setHovered} toggleSound={store.toggleSound} updateSoundVolume={store.updateSoundVolume} lang={store.lang} />
+            ))}
           </div>
-        </div>
-      </footer>
-    </div>
+        </main>
+
+        <motion.div className="dynamic-island-wrapper" initial={{ y: 150, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={trans(0.8)}>
+          <div className="dynamic-pill" role="region" aria-label="Global Controls">
+            <AnimatePresence>
+              {store.isTimerActive && store.initialTimerDuration > 0 && (
+                <motion.div
+                  className="timer-progress-bar"
+                  style={{ width: `${timerProgress}%` }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ opacity: { duration: 0.4 } }}
+                  aria-hidden="true"
+                />
+              )}
+            </AnimatePresence>
+            <div className="pill-left">
+              <div className="master-play-wrap">
+                <button onClick={store.toggleGlobalPlay} className={`pill-master-btn ${store.isGlobalPlaying ? 'active' : ''}`} aria-label={store.isGlobalPlaying ? 'Pause global audio' : 'Play global audio'} aria-pressed={store.isGlobalPlaying}>
+                  {store.isGlobalPlaying ? <FiPause size={18} aria-hidden="true" /> : <FiPlay size={18} className="play-offset" aria-hidden="true" />}
+                </button>
+              </div>
+              <div className="pill-status" aria-live="polite">
+                {store.isTimerActive && (
+                  <>
+                    <div className="timer-corner timer-corner--tl" aria-hidden="true" />
+                    <div className="timer-corner timer-corner--br" aria-hidden="true" />
+                  </>
+                )}
+                <span className="pill-label">{store.isGlobalPlaying || store.isTimerActive ? d.activo : d.standby}</span>
+                {store.isTimerActive && <span className="pill-time" role="timer">{fmtTime(store.timerDuration)}</span>}
+              </div>
+            </div>
+            <div className="pill-divider" aria-hidden="true" />
+            <div className="pill-center">
+              <FiClock size={16} color="rgba(255,255,255,0.4)" aria-hidden="true" />
+              <select value={timerPreset} onChange={e => handleTimer(parseInt(e.target.value))} className="clean-select" aria-label={d.timer}>
+                <option value={0}>{d.timer}</option>
+                {[1, 5, 15, 30, 60].map(m => <option key={m} value={m}>{m} {d.min}</option>)}
+              </select>
+            </div>
+            <div className="pill-divider hidden-mobile" aria-hidden="true" />
+            <div className="pill-right hidden-mobile">
+              <FiVolume2 size={18} color="rgba(255,255,255,0.6)" className="vol-icon" aria-hidden="true" />
+              <div className="vol-wrapper">
+                <input
+                  type="range" min="0" max="100" value={store.globalVolume}
+                  onChange={e => store.updateGlobalVolume(parseInt(e.target.value))}
+                  className="vol-slider"
+                  style={{ '--vol': `${store.globalVolume}%` } as any}
+                  aria-label="Global Volume"
+                />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <footer className="legal-footer">
+          <div className="legal-footer-content">
+            <h3 className="legal-title">{d.legalTitle}</h3>
+            <p className="legal-desc">{d.disclaimer}</p>
+            <div className="legal-links">
+              <span>© 2026 SILENCE / 01</span>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </>
   );
 }
