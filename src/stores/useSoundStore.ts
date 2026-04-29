@@ -28,7 +28,7 @@ export type Lang = 'ca' | 'es';
 
 export interface AppState {
   sounds: Sound[]; globalVolume: number; isGlobalPlaying: boolean;
-  timerDuration: number; isTimerActive: boolean;
+  timerDuration: number; initialTimerDuration: number; isTimerActive: boolean;
   user: User | null; isLoggedIn: boolean; isLoginModalOpen: boolean;
   lastActiveIds: number[]; lang: Lang;
   isMuted: boolean; prevVolume: number;
@@ -42,6 +42,7 @@ export interface AppState {
   updateGlobalVolume: (vol: number) => void;
   setTimerDuration: (m: number) => void;
   applyPreset: (type: PresetType) => void;
+  applyRandomMix: () => void;
   saveCustomPreset: (slot: number) => void;
   applyCustomPreset: (slot: number) => void;
   clearCustomPreset: (slot: number) => void;
@@ -147,7 +148,7 @@ const applyVolConfig = (get: () => AppState, set: (p: Partial<AppState> | ((s: A
     sounds: mapSounds(state.sounds, s => ({ isPlaying: s.id in vols, volume: vols[s.id] ?? s.volume })),
     isGlobalPlaying: true,
     lastActiveIds: Object.keys(vols).map(Number),
-    ...(timer ? { isTimerActive: timer.active, timerDuration: timer.duration } : {}),
+    ...(timer ? { isTimerActive: timer.active, timerDuration: timer.duration, initialTimerDuration: timer.duration } : {}),
   }));
   get().rehydrateAudio();
   get()._savePreferences();
@@ -158,6 +159,7 @@ const applyVolConfig = (get: () => AppState, set: (p: Partial<AppState> | ((s: A
 export const useSoundStore = create<AppState>((set, get) => ({
   ...restoreState(),
   isTimerActive: false,
+  initialTimerDuration: 0,
   isLoginModalOpen: false,
   isMuted: false,
   prevVolume: 80,
@@ -230,7 +232,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
   },
 
   setTimerDuration: (m) => {
-    set({ timerDuration: m, isTimerActive: m > 0 });
+    set({ timerDuration: m, isTimerActive: m > 0, initialTimerDuration: m });
     get()._savePreferences();
   },
 
@@ -251,6 +253,20 @@ export const useSoundStore = create<AppState>((set, get) => ({
   applyPreset: (type) => {
     const conf = PRESETS[type];
     if (conf) applyVolConfig(get, set, conf.vols, { active: true, duration: conf.time });
+  },
+
+  applyRandomMix: () => {
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8];
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    const selectedIds = ids.slice(0, 3);
+    const vols: Record<number, number> = {};
+    selectedIds.forEach(id => {
+      vols[id] = Math.floor(Math.random() * 51) + 30; // 分配 30 到 80 的随机音量
+    });
+    applyVolConfig(get, set, vols);
   },
 
   saveCustomPreset: (slot) => {
@@ -290,7 +306,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
 
   resetMix: () => {
     stopAll();
-    set({ sounds: mapSounds(get().sounds, () => ({ isPlaying: false, volume: 50 })), globalVolume: 80, isGlobalPlaying: false, isTimerActive: false, timerDuration: 15, lastActiveIds: [] });
+    set({ sounds: mapSounds(get().sounds, () => ({ isPlaying: false, volume: 50 })), globalVolume: 80, isGlobalPlaying: false, isTimerActive: false, timerDuration: 15, initialTimerDuration: 0, lastActiveIds: [] });
     get()._savePreferences();
   },
 
@@ -319,7 +335,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
   logout: () => {
     stopAll();
     localStorage.removeItem(SK_CURR);
-    set({ user: null, isLoggedIn: false, sounds: freshSounds(), globalVolume: 80, isGlobalPlaying: false, timerDuration: 15, isTimerActive: false, lastActiveIds: [] });
+    set({ user: null, isLoggedIn: false, sounds: freshSounds(), globalVolume: 80, isGlobalPlaying: false, timerDuration: 15, isTimerActive: false, initialTimerDuration: 0, lastActiveIds: [] });
   },
 
   deleteAccount: () => {

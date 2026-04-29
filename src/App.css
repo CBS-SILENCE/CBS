@@ -49,21 +49,64 @@ body {
   padding: 0 5vw;
 }
 
-/* ── Custom Cursor ────────────────────────────────────────────────────────── */
-.custom-cursor {
+/* ── Zen Mode Overlay (10秒禅定全黑幕) ────────────────────────────────────── */
+.zen-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 20px;
-  height: 20px;
-  background: #fff;
-  border-radius: 50%;
+  inset: 0;
+  background: #000;
+  z-index: 999990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 2s ease-in-out;
+}
+
+.zen-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.zen-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.2rem;
+  letter-spacing: 8px;
+  font-weight: 300;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+  margin: 0;
+}
+
+/* ── Custom Cursor (Gooey SVG Filter 融合拉丝) ────────────────────────────── */
+.cursor-goo-container {
+  position: fixed;
+  inset: 0;
   pointer-events: none;
   z-index: 999999;
+  filter: url('#goo');
   mix-blend-mode: difference;
+}
+
+.custom-cursor,
+.custom-cursor-trail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #fff;
+  border-radius: 50%;
   will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
+}
+
+.custom-cursor {
+  width: 20px;
+  height: 20px;
+}
+
+.custom-cursor-trail {
+  width: 14px;
+  height: 14px;
+  margin: 3px;
 }
 
 /* ── Navbar ───────────────────────────────────────────────────────────────── */
@@ -102,36 +145,72 @@ body {
   gap: 24px;
 }
 
-/* ─── Logo (固定在网页顶部文档流，深空高雅光效) ─── */
+/* ─── Custom Tooltip (replaces native title) ─── */
+.nav-tooltip {
+  position: relative;
+}
+
+.nav-tooltip::before {
+  content: '';
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-bottom-color: rgba(15, 15, 15, 0.92);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 999;
+}
+
+.nav-tooltip::after {
+  content: attr(aria-label);
+  position: absolute;
+  top: calc(100% + 15px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 15, 15, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.15s ease;
+  z-index: 999;
+}
+
+.nav-tooltip:hover::before,
+.nav-tooltip:hover::after {
+  opacity: 1;
+  transition: opacity 0.25s ease 0.4s;
+}
+
+.nav-tooltip[aria-expanded="true"]::before,
+.nav-tooltip[aria-expanded="true"]::after {
+  display: none;
+}
+
+/* ─── Logo (纯净无极光版) ─── */
 .document-logo {
   position: absolute;
-  top: 40px; 
+  top: 40px;
   left: 6vw;
   width: 150px;
   height: 150px;
   cursor: none;
-  z-index: 101; 
+  z-index: 101;
 }
 
-/* 极光底座保持不变 */
-.document-logo::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 30px;
-  width: 100px;
-  height: 100px;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.03) 0%, transparent 50%),
-              radial-gradient(circle at 70% 70%, rgba(60, 70, 90, 0.15) 0%, transparent 60%);
-  border-radius: 50%;
-  filter: blur(10px);
-  pointer-events: none;
-  z-index: -1;
-  animation: auroraRotate 8s linear infinite;
-  transform: translate(-50%, -50%);
-}
-
-/* 高雅特殊动效：深空回响 (Deep Ethereal Echo) 取代基础涟漪 */
 .document-logo::after {
   content: '';
   position: absolute;
@@ -152,12 +231,6 @@ body {
   animation: deepEcho 1.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
 }
 
-@keyframes auroraRotate {
-  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
-  50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.1); }
-  100% { transform: translate(-50%, -50%) rotate(360deg) scale(1); }
-}
-
 @keyframes deepEcho {
   0% {
     width: 20px;
@@ -176,14 +249,8 @@ body {
 }
 
 @keyframes staticBreathe {
-  0%, 100% { 
-    opacity: 0.6; 
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1)); 
-  }
-  50% { 
-    opacity: 0.95; 
-    filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.4)); 
-  }
+  0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1)); }
+  50% { opacity: 0.95; filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.4)); }
 }
 
 .logo-img {
@@ -194,7 +261,7 @@ body {
   width: auto;
   object-fit: contain;
   transform-origin: center center;
-  opacity: 0.6; 
+  opacity: 0.6;
   animation: staticBreathe 6s ease-in-out infinite;
   transition: filter 0.3s ease;
   will-change: transform, filter, opacity;
@@ -204,34 +271,16 @@ body {
   filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.8));
 }
 
-/* 枯枝本体的生命脉冲 (Ethereal Bloom) 取代物理震动 */
 @keyframes etherealBloom {
-  0% {
-    opacity: 0.6;
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1)) blur(0px);
-    transform: scale(1) translateY(0);
-  }
-  20% {
-    opacity: 1;
-    filter: drop-shadow(0 0 50px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.8)) brightness(1.3);
-    transform: scale(1.1) translateY(-2px);
-  }
-  60% {
-    opacity: 0.85;
-    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5)) brightness(1.1);
-    transform: scale(0.98) translateY(1px);
-  }
-  100% {
-    opacity: 0.6;
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1)) blur(0px);
-    transform: scale(1) translateY(0);
-  }
+  0% { opacity: 0.6; filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1)) blur(0px); transform: scale(1) translateY(0); }
+  20% { opacity: 1; filter: drop-shadow(0 0 50px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.8)) brightness(1.3); transform: scale(1.1) translateY(-2px); }
+  60% { opacity: 0.85; filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5)) brightness(1.1); transform: scale(0.98) translateY(1px); }
+  100% { opacity: 0.6; filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1)) blur(0px); transform: scale(1) translateY(0); }
 }
 
 .document-logo.ripple-active .logo-img {
   animation: etherealBloom 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) forwards !important;
 }
-/* ─── Logo 结束 ─── */
 
 /* ── Buttons Base ─────────────────────────────────────────────────────────── */
 .btn-login,
@@ -460,6 +509,18 @@ body {
   align-items: start;
 }
 
+/* 卡片专属颜色呼吸动画 (使用 CSS 原生变量注入) */
+@keyframes cardAudioPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--theme-color-rgb), 0), inset 0 0 0 0 rgba(var(--theme-color-rgb), 0);
+    border-color: transparent;
+  }
+  50% {
+    box-shadow: 0 0 20px 2px rgba(var(--theme-color-rgb), 0.15), inset 0 0 10px 1px rgba(var(--theme-color-rgb), 0.1);
+    border-color: rgba(var(--theme-color-rgb), 0.3);
+  }
+}
+
 .sound-editorial-card {
   position: relative;
   width: 100%;
@@ -472,6 +533,11 @@ body {
   justify-content: space-between;
   will-change: transform, opacity;
   transform: translateZ(0);
+  border: 1px solid transparent;
+}
+
+.sound-editorial-card.is-playing {
+  animation: cardAudioPulse 4s ease-in-out infinite;
 }
 
 .card-bg-container,
@@ -692,6 +758,8 @@ body {
 
 .dynamic-pill {
   pointer-events: auto;
+  position: relative;
+  overflow: hidden;
   background: rgba(20, 20, 20, 0.7);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -704,6 +772,22 @@ body {
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
   will-change: transform, backdrop-filter;
   transform: translateZ(0);
+}
+
+/* ── Timer Progress Bar ───────────────────────────────────────────────────── */
+.timer-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 100px;
+  box-shadow:
+    0 0 4px 1px rgba(255, 255, 255, 0.5),
+    0 0 12px 2px rgba(255, 255, 255, 0.15);
+  transition: width 1s linear;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .pill-left {
@@ -1217,6 +1301,12 @@ body {
   .dynamic-pill {
     padding: 12px 20px;
   }
+
+  /* Hide tooltips on mobile — touch users don't hover */
+  .nav-tooltip::before,
+  .nav-tooltip::after {
+    display: none !important;
+  }
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -1226,6 +1316,12 @@ body {
 
   * {
     cursor: auto !important;
+  }
+
+  /* Explicitly kill tooltips on touch devices */
+  .nav-tooltip::before,
+  .nav-tooltip::after {
+    display: none !important;
   }
 }
 
