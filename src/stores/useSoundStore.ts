@@ -30,6 +30,7 @@ export interface AppState {
   sounds: Sound[]; globalVolume: number; isGlobalPlaying: boolean;
   timerDuration: number; initialTimerDuration: number; isTimerActive: boolean;
   user: User | null; isLoggedIn: boolean; isLoginModalOpen: boolean;
+  isShareModalOpen: boolean; // 新增分享弹窗状态
   lastActiveIds: number[]; lang: Lang;
   isMuted: boolean; prevVolume: number;
   _savePreferences: () => void;
@@ -53,6 +54,7 @@ export interface AppState {
   logout: () => void;
   deleteAccount: () => void;
   toggleLoginModal: (open?: boolean) => void;
+  toggleShareModal: (open?: boolean) => void; // 新增分享弹窗开关
   setLang: (lang: Lang) => void;
 }
 
@@ -154,6 +156,8 @@ const applyVolConfig = (get: () => AppState, set: (p: Partial<AppState> | ((s: A
   get()._savePreferences();
 };
 
+const RESET_STATE = { globalVolume: 80, isGlobalPlaying: false, isTimerActive: false, timerDuration: 15, initialTimerDuration: 0, lastActiveIds: [] as number[] };
+
 /* ── Store ─────────────────────────────────────────────────────────────── */
 
 export const useSoundStore = create<AppState>((set, get) => ({
@@ -161,6 +165,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
   isTimerActive: false,
   initialTimerDuration: 0,
   isLoginModalOpen: false,
+  isShareModalOpen: false,
   isMuted: false,
   prevVolume: 80,
 
@@ -264,7 +269,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
     const selectedIds = ids.slice(0, 3);
     const vols: Record<number, number> = {};
     selectedIds.forEach(id => {
-      vols[id] = Math.floor(Math.random() * 51) + 30; // 分配 30 到 80 的随机音量
+      vols[id] = Math.floor(Math.random() * 51) + 30;
     });
     applyVolConfig(get, set, vols);
   },
@@ -306,7 +311,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
 
   resetMix: () => {
     stopAll();
-    set({ sounds: mapSounds(get().sounds, () => ({ isPlaying: false, volume: 50 })), globalVolume: 80, isGlobalPlaying: false, isTimerActive: false, timerDuration: 15, initialTimerDuration: 0, lastActiveIds: [] });
+    set({ sounds: mapSounds(get().sounds, () => ({ isPlaying: false, volume: 50 })), ...RESET_STATE });
     get()._savePreferences();
   },
 
@@ -335,7 +340,7 @@ export const useSoundStore = create<AppState>((set, get) => ({
   logout: () => {
     stopAll();
     localStorage.removeItem(SK_CURR);
-    set({ user: null, isLoggedIn: false, sounds: freshSounds(), globalVolume: 80, isGlobalPlaying: false, timerDuration: 15, isTimerActive: false, initialTimerDuration: 0, lastActiveIds: [] });
+    set({ user: null, isLoggedIn: false, sounds: freshSounds(), ...RESET_STATE });
   },
 
   deleteAccount: () => {
@@ -346,5 +351,6 @@ export const useSoundStore = create<AppState>((set, get) => ({
   },
 
   toggleLoginModal: (open?) => set(s => ({ isLoginModalOpen: open ?? !s.isLoginModalOpen })),
+  toggleShareModal: (open?) => set(s => ({ isShareModalOpen: open ?? !s.isShareModalOpen })),
   setLang: (lang) => { localStorage.setItem(SK_LANG, JSON.stringify(lang)); set({ lang }); },
 }));

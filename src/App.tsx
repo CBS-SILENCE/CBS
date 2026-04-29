@@ -1,11 +1,13 @@
+// 文件路径: src/App.tsx
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import './App.css';
 import { useSoundStore } from './stores/useSoundStore';
 import type { Sound, PresetType, Lang } from './stores/useSoundStore';
-import { FiPlay, FiPause, FiVolume2, FiClock, FiX, FiUser, FiLogOut, FiChevronDown, FiUserX, FiGlobe, FiShare2 } from 'react-icons/fi';
+import { FiPlay, FiPause, FiVolume2, FiClock, FiX, FiUser, FiLogOut, FiChevronDown, FiUserX, FiGlobe, FiShare2, FiDownload, FiSend, FiVideo } from 'react-icons/fi';
 import { TbCloudRain, TbWind, TbFlame, TbCloudStorm } from 'react-icons/tb';
 import { GiDove, GiCricket, GiBigWave, GiTreeBranch } from 'react-icons/gi';
 import { motion, AnimatePresence, useScroll, useTransform, Variants, useSpring, useMotionValue } from 'framer-motion';
+import { Howler } from 'howler';
 
 import rainBg from './assets/images/rain-on-grasst.png';
 import wavesBg from './assets/images/waves.png';
@@ -16,8 +18,6 @@ import cricketBg from './assets/images/cricket.png';
 import thunderBg from './assets/images/thunder.png';
 import woodcrackBg from './assets/images/woodcrack.png';
 import logoImg from './assets/images/logo-512x512.png';
-
-/* ── i18n Dictionary ───────────────────────────────────────────────────── */
 
 const dict: Record<Lang, Record<string, string>> = {
   ca: {
@@ -33,12 +33,10 @@ const dict: Record<Lang, Record<string, string>> = {
     share: 'COMPARTIR', copied: 'ENLLAÇ COPIAT', noActive: 'CAP SO ACTIU', reset: 'RESTABLIR',
     myMixes: 'ELS MEUS MIXOS', saveMix: 'DESA', mix: 'MIX', noActiveToSave: 'ACTIVA ALGUN SO PRIMER', saved: 'DESAT',
     legalTitle: 'Informació Legal',
-    disclaimer: 'Aquest projecte no està associat amb cap projecte original i és exclusivament amb finalitats educatives. No es recopilen dades d\'usuari.',
-    terms: 'Termes',
-    privacy: 'Privadesa',
-    changeLang: 'CANVIAR IDIOMA',
-    userMenu: "MENÚ D'USUARI",
-    ignot: "L'IGNOT",
+    disclaimer: 'Aquest projecte no està associat amb cap projecte original i és exclusivament amb finalitats educatives.',
+    terms: 'Termes', privacy: 'Privadesa',
+    changeLang: 'CANVIAR IDIOMA', userMenu: "MENÚ D'USUARI", ignot: "L'IGNOT",
+    shareDesc: 'ESCANEJA PER ESCOLTAR', download: 'DESCARREGAR', shareApp: 'COMPARTIR', nativeShare: 'NATIVE SHARE',
   },
   es: {
     estado: 'ESTADO', activo: 'ACTIVO', espera: 'ESPERA', pistas: 'PISTAS', volumen: 'VOLUMEN',
@@ -53,16 +51,12 @@ const dict: Record<Lang, Record<string, string>> = {
     share: 'COMPARTIR', copied: 'ENLACE COPIADO', noActive: 'NINGÚN SONIDO ACTIVO', reset: 'REINICIAR',
     myMixes: 'MIS MIXES', saveMix: 'GUARDAR', mix: 'MIX', noActiveToSave: 'ACTIVA ALGÚN SONIDO PRIMERO', saved: 'GUARDADO',
     legalTitle: 'Información Legal',
-    disclaimer: 'Este proyecto no está asociado con ningún proyecto original y es exclusivamente para fines educativos. No se recopilan datos de usuario.',
-    terms: 'Términos',
-    privacy: 'Privacidad',
-    changeLang: 'CAMBIAR IDIOMA',
-    userMenu: 'MENÚ DE USUARIO',
-    ignot: 'IGNÓTO',
+    disclaimer: 'Este proyecto no asociado con ningún proyecto original y es exclusivamente para fines educativos.',
+    terms: 'Términos', privacy: 'Privacidad',
+    changeLang: 'CAMBIAR IDIOMA', userMenu: 'MENÚ DE USUARIO', ignot: 'IGNÓTO',
+    shareDesc: 'ESCANEA PARA ESCUCHAR', download: 'DESCARGAR', shareApp: 'COMPARTIR', nativeShare: 'NATIVE SHARE',
   },
 };
-
-/* ── Static Maps ───────────────────────────────────────────────────────── */
 
 const bgMap: Record<number, string> = { 1: rainBg, 2: cricketBg, 3: wavesBg, 4: thunderBg, 5: fireBg, 6: windBg, 7: birdBg, 8: woodcrackBg };
 const iconMap: Record<number, React.ReactNode> = { 1: <TbCloudRain />, 2: <GiCricket />, 3: <GiBigWave />, 4: <TbCloudStorm />, 5: <TbFlame />, 6: <TbWind />, 7: <GiDove />, 8: <GiTreeBranch /> };
@@ -77,19 +71,10 @@ const authorMap: Record<number, { name: string; url: string }> = {
   8: { name: 'kyles', url: 'https://freesound.org/people/kyles/sounds/637746/' },
 };
 
-/* 根据图片氛围制定的专属边缘呼吸RGB色值 */
 const themeColorMap: Record<number, string> = {
-  1: '90, 140, 180',  // Rain: 微弱冷灰蓝
-  2: '110, 90, 150',  // Cricket: 夜晚幽紫
-  3: '0, 120, 200',   // Waves: 深海蓝
-  4: '140, 100, 220', // Thunder: 暗紫色
-  5: '220, 80, 20',   // Fire: 余烬橙红
-  6: '160, 190, 190', // Wind: 苍白青绿
-  7: '220, 160, 80',  // Birds: 黎明金黄
-  8: '160, 110, 60',  // Woodcrack: 枯木琥珀色
+  1: '90, 140, 180', 2: '110, 90, 150', 3: '0, 120, 200', 4: '140, 100, 220',
+  5: '220, 80, 20', 6: '160, 190, 190', 7: '220, 160, 80', 8: '160, 110, 60',
 };
-
-/* ── Animation Presets ─────────────────────────────────────────────────── */
 
 const ease = [0.16, 1, 0.3, 1] as [number, number, number, number];
 const trans = (delay = 0, duration = 1.5): any => ({ duration, delay, ease });
@@ -100,7 +85,12 @@ const modalAnim = (s = 0.9, y = 30, dur = 0.4) => ({
   exit: { scale: s, opacity: 0, y }, transition: trans(0, dur),
 });
 
-/* ── Hooks ─────────────────────────────────────────────────────────────── */
+const zenQuotes = [
+  "En el ruido, encuentra tu ancla.",
+  "Escucha el silencio.",
+  "Respira. Pausa. Siente.",
+  "El mundo se desvanece."
+];
 
 const useDict = () => dict[useSoundStore(s => s.lang)];
 
@@ -110,7 +100,252 @@ const useToast = (duration: number): [string, (msg: string) => void] => {
   return [msg, show];
 };
 
-/* ── CustomCursor ──────────────────────────────────────────────────────── */
+const useIdle = (ms: number) => {
+  const [idle, setIdle] = useState(false);
+  const [quote, setQuote] = useState('');
+
+  useEffect(() => {
+    let t: NodeJS.Timeout;
+    const reset = () => {
+      setIdle(false);
+      clearTimeout(t);
+      t = setTimeout(() => { setQuote(zenQuotes[Math.floor(Math.random() * zenQuotes.length)]); setIdle(true); }, ms);
+    };
+    const events = ['mousemove', 'keydown', 'click'] as const;
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => { events.forEach(e => window.removeEventListener(e, reset)); clearTimeout(t); };
+  }, [ms]);
+
+  return { idle, quote };
+};
+
+const loadImg = (src: string): Promise<HTMLImageElement> => new Promise(res => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => res(img);
+  img.src = src;
+});
+
+const ShareModal = () => {
+  const { isShareModalOpen: isOpen, toggleShareModal, sounds, lang } = useSoundStore();
+  const d = dict[lang];
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const isRecordingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setVideoUrl(null);
+      setIsRecording(false);
+      setProgress(0);
+      isRecordingRef.current = false;
+    }
+  }, [isOpen]);
+
+  const startRecording = async () => {
+    setIsRecording(true);
+    setProgress(0);
+    isRecordingRef.current = true;
+
+    const active = sounds.filter(s => s.isPlaying).sort((a, b) => b.volume - a.volume);
+    const mainImg = active.length > 0 ? await loadImg(bgMap[active[0].id]) : null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920; 
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const audioCtx = Howler.ctx;
+    if (!audioCtx) {
+      setIsRecording(false);
+      return;
+    }
+
+    const dest = audioCtx.createMediaStreamDestination();
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256; 
+    Howler.masterGain.connect(analyser);
+    analyser.connect(dest);
+
+    const canvasStream = canvas.captureStream(30);
+    const audioTrack = dest.stream.getAudioTracks()[0];
+    if (audioTrack) canvasStream.addTrack(audioTrack);
+
+    const mimeType = [
+      'video/mp4',
+      'video/webm;codecs=vp9',
+      'video/webm'
+    ].find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+    const recorder = new MediaRecorder(canvasStream, { mimeType });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+      setVideoUrl(URL.createObjectURL(blob));
+      setIsRecording(false);
+      isRecordingRef.current = false;
+    };
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    let frameId: number;
+
+    const draw = () => {
+      if (!isRecordingRef.current) return;
+      frameId = requestAnimationFrame(draw);
+
+      analyser.getByteFrequencyData(dataArray);
+
+      ctx.fillStyle = '#050505';
+      ctx.fillRect(0, 0, 1080, 1920);
+
+      if (mainImg) {
+        const imgRatio = mainImg.width / mainImg.height;
+        const boxRatio = 1080 / 1920;
+        let dw = 1080, dh = 1920, dx = 0, dy = 0;
+        if (imgRatio > boxRatio) {
+          dw = 1920 * imgRatio; dx = -(dw - 1080) / 2;
+        } else {
+          dh = 1080 / imgRatio; dy = -(dh - 1920) / 2;
+        }
+        ctx.drawImage(mainImg, dx, dy, dw, dh);
+        ctx.fillStyle = 'rgba(5, 5, 5, 0.75)';
+        ctx.fillRect(0, 0, 1080, 1920);
+      }
+
+      const cx = 540, cy = 800, r = 250;
+      ctx.beginPath();
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 255.0;
+        const h = v * 200;
+        const angle = (i / bufferLength) * Math.PI * 2;
+        const x1 = cx + Math.cos(angle) * r;
+        const y1 = cy + Math.sin(angle) * r;
+        const x2 = cx + Math.cos(angle) * (r + h);
+        const y2 = cy + Math.sin(angle) * (r + h);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = '500 28px "Helvetica Neue", Helvetica, Arial, sans-serif';
+      ctx.letterSpacing = '10px';
+      ctx.textAlign = 'center';
+      ctx.fillText('CBS-SILENCE', cx, cy + 10);
+
+      ctx.textAlign = 'left';
+      const bottomY = 1400;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.font = '400 24px "Helvetica Neue", Helvetica, Arial, sans-serif';
+      ctx.letterSpacing = '6px';
+      ctx.fillText(lang === 'ca' ? 'LA TEVA ATMOSFERA' : 'TU ATMÓSFERA', 120, bottomY);
+
+      const leftColX = 120;
+      const rightColX = 540;
+      const listStartY = bottomY + 80;
+
+      active.forEach((s, idx) => {
+        const name = (lang === 'ca' ? s.name_ca : s.name_es).split(' ')[0];
+        const volStr = s.volume.toString();
+        const isRight = idx % 2 !== 0;
+        const baseX = isRight ? rightColX : leftColX;
+        const y = listStartY + Math.floor(idx / 2) * 60;
+
+        ctx.font = '600 28px "Helvetica Neue", Helvetica, Arial, sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.letterSpacing = '4px';
+        ctx.fillText(name, baseX, y);
+
+        ctx.font = '400 28px monospace';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.letterSpacing = '0px';
+        ctx.fillText(volStr, baseX + 260, y);
+      });
+    };
+
+    draw();
+    recorder.start();
+
+    let elapsed = 0;
+    const totalTime = 15000;
+    const intervalId = setInterval(() => {
+      elapsed += 100;
+      setProgress(elapsed / totalTime);
+      if (elapsed >= totalTime) {
+        clearInterval(intervalId);
+        isRecordingRef.current = false;
+        recorder.stop();
+        cancelAnimationFrame(frameId);
+        setTimeout(() => {
+          try {
+            Howler.masterGain.disconnect(analyser);
+            analyser.disconnect(dest);
+          } catch (e) {}
+        }, 100);
+      }
+    }, 100);
+  };
+
+  const handleNativeShare = async () => {
+    if (!navigator.share || !videoUrl) return;
+    try {
+      const blob = await (await fetch(videoUrl)).blob();
+      const file = new File([blob], 'silence-mix.mp4', { type: blob.type });
+      await navigator.share({
+        title: 'CBS-SILENCE',
+        text: 'Escucha mi atmósfera.',
+        files: [file]
+      });
+    } catch (err) {}
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div className="modal-overlay" onClick={() => !isRecording && toggleShareModal(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div className="modal-content share-modal-content" onClick={e => e.stopPropagation()} {...modalAnim(0.95, 20, 0.4)}>
+            <h2 id="share-title">{d.shareApp}</h2>
+            <div className="video-container">
+              {videoUrl ? (
+                <video src={videoUrl} controls autoPlay loop className="share-video-preview" />
+              ) : isRecording ? (
+                <div className="recording-status">
+                  <div className="pulsing-record-dot" />
+                  <span>RECORDING</span>
+                  <div className="record-progress-bar" style={{ width: `${progress * 100}%` }} />
+                </div>
+              ) : (
+                <button className="btn-auth-submit btn-start-record" onClick={startRecording}>
+                  <FiVideo size={20} /> START 15S RECORDING
+                </button>
+              )}
+            </div>
+            {videoUrl && (
+              <div className="share-actions">
+                <a className="btn-auth-submit btn-cancel" href={videoUrl} download="silence-mix.mp4">
+                  <FiDownload size={16} /> {d.download}
+                </a>
+                {'share' in navigator && (
+                  <button className="btn-auth-submit" onClick={handleNativeShare}>
+                    <FiSend size={16} /> {d.nativeShare}
+                  </button>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 const CustomCursor = () => {
   const x = useMotionValue(-100), y = useMotionValue(-100);
@@ -146,8 +381,6 @@ const CustomCursor = () => {
   );
 };
 
-/* ── StatusMonitor (HUD) ───────────────────────────────────────────────── */
-
 const StatusMonitor = () => {
   const { sounds, isGlobalPlaying, lang } = useSoundStore();
   const d = dict[lang];
@@ -182,8 +415,6 @@ const StatusMonitor = () => {
   );
 };
 
-/* ── ConfirmDeleteModal ────────────────────────────────────────────────── */
-
 const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
   const d = useDict();
   return (
@@ -208,8 +439,6 @@ const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; o
     </AnimatePresence>
   );
 };
-
-/* ── LoginModal ────────────────────────────────────────────────────────── */
 
 const LoginModal = () => {
   const { isLoginModalOpen: isOpen, toggleLoginModal: toggle, login, register, lang } = useSoundStore();
@@ -255,8 +484,6 @@ const LoginModal = () => {
   );
 };
 
-/* ── SoundCard ─────────────────────────────────────────────────────────── */
-
 interface SoundCardProps {
   s: Sound; i: number; isDim: boolean; hovered: number | null; lang: Lang;
   setHovered: (id: number | null) => void; toggleSound: (id: number) => void; updateSoundVolume: (id: number, vol: number) => void;
@@ -265,7 +492,6 @@ interface SoundCardProps {
 const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, updateSoundVolume, lang }: SoundCardProps) => {
   const label = lang === 'ca' ? s.name_ca : s.name_es;
   const author = authorMap[s.id];
-  const themeRgb = themeColorMap[s.id] || '255, 255, 255';
 
   return (
     <div style={{ marginTop: i % 2 ? 120 : 0 }}>
@@ -279,7 +505,7 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
           onMouseLeave={() => setHovered(null)}
           animate={{ opacity: isDim ? 0.55 : 1, scale: isDim ? 0.97 : 1, filter: isDim ? 'blur(2px)' : 'blur(0px)' }}
           transition={{ duration: 0.4 }}
-          style={{ '--theme-color-rgb': themeRgb } as React.CSSProperties}
+          style={{ '--theme-color-rgb': themeColorMap[s.id] || '255,255,255' } as React.CSSProperties}
         >
             <div className="card-bg-container" aria-hidden="true">
               <motion.div
@@ -331,21 +557,10 @@ const SoundCard = React.memo(({ s, i, isDim, hovered, setHovered, toggleSound, u
   );
 });
 
-/* ── Helpers ───────────────────────────────────────────────────────────── */
-
 const fmtTime = (s: number): string => {
   const total = Math.max(0, Math.ceil(s * 60));
   return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, '0')}`;
 };
-
-/* ── App (Root) ────────────────────────────────────────────────────────── */
-
-const zenQuotes = [
-  "En el ruido, encuentra tu ancla.",
-  "Escucha el silencio.",
-  "Respira. Pausa. Siente.",
-  "El mundo se desvanece."
-];
 
 export default function App() {
   const store = useSoundStore();
@@ -359,15 +574,12 @@ export default function App() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const [logoRipple, setLogoRipple] = useState(false);
-  
-  const [isIdle, setIsIdle] = useState(false);
-  const [currentZenQuote, setCurrentZenQuote] = useState('');
-
   const triggerRipple = () => {
     if (logoRipple) return;
     setLogoRipple(true);
     setTimeout(() => setLogoRipple(false), 1200);
   };
+  const { idle, quote } = useIdle(10000);
 
   const [shareToastMsg, showShareToast] = useToast(3000);
   const [globalToastMsg, showGlobalToast] = useToast(1500);
@@ -383,36 +595,10 @@ export default function App() {
     : 0;
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    const resetIdle = () => {
-      setIsIdle(false);
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        setCurrentZenQuote(zenQuotes[Math.floor(Math.random() * zenQuotes.length)]);
-        setIsIdle(true);
-      }, 10000);
-    };
-
-    window.addEventListener('mousemove', resetIdle, { passive: true });
-    window.addEventListener('keydown', resetIdle, { passive: true });
-    window.addEventListener('click', resetIdle, { passive: true });
-    
-    resetIdle();
-
-    return () => {
-      window.removeEventListener('mousemove', resetIdle);
-      window.removeEventListener('keydown', resetIdle);
-      window.removeEventListener('click', resetIdle);
-      clearTimeout(timeout);
-    };
-  }, []);
-
-  useEffect(() => {
     if (window.location.search) {
       store.applyUrlMix(window.location.search);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -445,19 +631,8 @@ export default function App() {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const state = useSoundStore.getState();
-
-      if (e.code === 'Space') {
-        e.preventDefault();
-        state.toggleGlobalPlay();
-        showGlobalToast(!state.isGlobalPlaying ? 'PLAY' : 'PAUSE');
-        return;
-      }
-      if (e.code === 'KeyM') {
-        e.preventDefault();
-        state.toggleMute();
-        showGlobalToast(!state.isMuted ? 'MUTE' : 'UNMUTE');
-        return;
-      }
+      if (e.code === 'Space') { e.preventDefault(); state.toggleGlobalPlay(); showGlobalToast(!state.isGlobalPlaying ? 'PLAY' : 'PAUSE'); return; }
+      if (e.code === 'KeyM') { e.preventDefault(); state.toggleMute(); showGlobalToast(!state.isMuted ? 'MUTE' : 'UNMUTE'); return; }
       const m = e.code.match(/^(?:Digit|Numpad)([1-8])$/);
       if (m) {
         e.preventDefault();
@@ -471,35 +646,27 @@ export default function App() {
 
   const handleTimer = (m: number) => { setTimerPreset(m); store.setTimerDuration(m); };
 
-  const handleShare = () => {
+  const handleShareClick = () => {
     const active = store.sounds.filter(s => s.isPlaying);
     if (!active.length) return showShareToast(d.noActive);
-    const params = new URLSearchParams();
-    active.forEach(s => params.set(s.name.toLowerCase(), s.volume.toString()));
-    navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?${params}`).then(() => showShareToast(d.copied));
+    store.toggleShareModal(true);
   };
 
   return (
     <>
       <CustomCursor />
-      
-      <div className={`zen-overlay ${isIdle ? 'active' : ''}`} aria-hidden="true">
-        <p className="zen-text">{currentZenQuote}</p>
+      <div className={`zen-overlay ${idle ? 'active' : ''}`} aria-hidden="true">
+        <p className="zen-text">{quote}</p>
       </div>
 
       <div className="page-wrapper">
         <LoginModal />
+        <ShareModal />
         <ConfirmDeleteModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={() => { store.deleteAccount(); setShowDeleteConfirm(false); }} />
 
         <AnimatePresence>
           {globalToastMsg && (
-            <motion.div
-              className="global-toast"
-              initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
-              animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-              exit={{ opacity: 0, scale: 1.05, x: '-50%', y: '-50%' }}
-              transition={{ duration: 0.4, ease }}
-            >
+            <motion.div className="global-toast" initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }} animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }} exit={{ opacity: 0, scale: 1.05, x: '-50%', y: '-50%' }} transition={{ duration: 0.4, ease }}>
               [ {globalToastMsg} ]
             </motion.div>
           )}
@@ -507,12 +674,7 @@ export default function App() {
 
         <AnimatePresence>
           {trackToastMsg && (
-            <motion.div
-              className="toast-msg track-toast"
-              initial={{ opacity: 0, y: 20, x: '-50%' }}
-              animate={{ opacity: 1, y: 0, x: '-50%' }}
-              exit={{ opacity: 0, y: -20, x: '-50%' }}
-            >
+            <motion.div className="toast-msg track-toast" initial={{ opacity: 0, y: 20, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: -20, x: '-50%' }}>
               {trackToastMsg}
             </motion.div>
           )}
@@ -527,19 +689,12 @@ export default function App() {
           <div className="nav-center"><StatusMonitor /></div>
           <div className="nav-right">
             <div className="share-anchor">
-              <button onClick={handleShare} className="btn-icon nav-tooltip" aria-label={d.share} title={d.share}>
+              <button onClick={handleShareClick} className="btn-icon nav-tooltip" aria-label={d.share}>
                 <FiShare2 size={18} aria-hidden="true" />
               </button>
               <AnimatePresence>
                 {shareToastMsg && (
-                  <motion.div
-                    className="toast-msg share-toast"
-                    role="status" aria-live="polite"
-                    initial={{ opacity: 0, y: 10, x: '-50%' }}
-                    animate={{ opacity: 1, y: 0, x: '-50%' }}
-                    exit={{ opacity: 0, y: 10, x: '-50%' }}
-                    transition={{ duration: 0.3, ease }}
-                  >
+                  <motion.div className="toast-msg share-toast" role="status" aria-live="polite" initial={{ opacity: 0, y: 10, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 10, x: '-50%' }} transition={{ duration: 0.3, ease }}>
                     {shareToastMsg}
                   </motion.div>
                 )}
@@ -560,13 +715,7 @@ export default function App() {
                 </button>
                 <AnimatePresence>
                   {isUserMenuOpen && (
-                    <motion.div
-                      className="dropdown-menu"
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.2, ease }}
-                    >
+                    <motion.div className="dropdown-menu" initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2, ease }}>
                       <button className="dropdown-item" onClick={() => { store.logout(); setIsUserMenuOpen(false); }}>
                         <FiLogOut size={14} aria-hidden="true" /> {d.logout}
                       </button>
@@ -651,15 +800,7 @@ export default function App() {
           <div className="dynamic-pill" role="region" aria-label="Global Controls">
             <AnimatePresence>
               {store.isTimerActive && store.initialTimerDuration > 0 && (
-                <motion.div
-                  className="timer-progress-bar"
-                  style={{ width: `${timerProgress}%` }}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ opacity: { duration: 0.4 } }}
-                  aria-hidden="true"
-                />
+                <motion.div className="timer-progress-bar" style={{ width: `${timerProgress}%` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ opacity: { duration: 0.4 } }} aria-hidden="true" />
               )}
             </AnimatePresence>
             <div className="pill-left">
@@ -691,13 +832,7 @@ export default function App() {
             <div className="pill-right hidden-mobile">
               <FiVolume2 size={18} color="rgba(255,255,255,0.6)" className="vol-icon" aria-hidden="true" />
               <div className="vol-wrapper">
-                <input
-                  type="range" min="0" max="100" value={store.globalVolume}
-                  onChange={e => store.updateGlobalVolume(parseInt(e.target.value))}
-                  className="vol-slider"
-                  style={{ '--vol': `${store.globalVolume}%` } as any}
-                  aria-label="Global Volume"
-                />
+                <input type="range" min="0" max="100" value={store.globalVolume} onChange={e => store.updateGlobalVolume(parseInt(e.target.value))} className="vol-slider" style={{ '--vol': `${store.globalVolume}%` } as any} aria-label="Global Volume" />
               </div>
             </div>
           </div>
@@ -707,9 +842,7 @@ export default function App() {
           <div className="legal-footer-content">
             <h3 className="legal-title">{d.legalTitle}</h3>
             <p className="legal-desc">{d.disclaimer}</p>
-            <div className="legal-links">
-              <span>© 2026 SILENCE / 01</span>
-            </div>
+            <div className="legal-links"><span>© 2026 SILENCE / 01</span></div>
           </div>
         </footer>
       </div>
